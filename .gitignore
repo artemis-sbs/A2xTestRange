@@ -1,0 +1,6 @@
+__pycache__/
+*.log
+mast.compile.log
+mast.runtime.log
+debug.log
+test_results.log

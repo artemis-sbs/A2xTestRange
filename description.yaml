@@ -1,0 +1,6 @@
+format version: 1
+Category: Test
+Category Priority: C
+Visible Mission Name: A2x Test Range
+Description: Conformance tests for the arme2cosmos converter's assumed a2x / LegendaryMissions behaviors.
+Keywords: test, conformance, dev, a2x, converter

@@ -1,0 +1,88 @@
+# Conformance test: the arme2cosmos converter's assumed add_ai behaviors -- that the a2x / LM
+# calls the tool EMITS actually produce the intended runtime effect (not just that the right
+# call is emitted, which the tool's unit tests cover). Mirrors test_beacon / test_chase: each
+# scenario is its own cluster (>150000u apart) since brains sweep globally, and assertions read
+# the recorded DECISION (target_pos / blackboard / roles / objective), never raw physics.
+#
+# Run: python -m cosmos_dev.mission_runner LM_TestRange --map test_convert_ai --test 30
+
+=== run_test_convert_ai
+metadata: ``` yaml
+type: test/convert_ai
+```
+    side_ensure("raider", "Raider")
+    side_ensure("tsn", "TSN")
+    side_ensure("civ", "Civ")
+
+    # --- A: POINT_THROTTLE -> target_pos to the coordinate-flipped point (100000-2000 = 98000) ---
+    a_id = npc_spawn(100000, 0, 100000, "PtA", "raider", "arvonian_destroyer", "behav_npcship")
+    target_pos(a_id, *a2x_pos(2000, 0, 15000), 1.0)
+
+    # --- B: PROCEED_TO_EXIT -> target_pos to the ship's spawn point (like a surrendered ship) ---
+    b_id = npc_spawn(300000, 0, 100000, "ExitB", "raider", "arvonian_destroyer", "behav_npcship")
+    b_ret = a2x_add_ai(b_id, "PROCEED_TO_EXIT")
+
+    # --- C: CHASE_ANGER -> the ai_chase_current brain, re-chasing the current target (id) ---
+    c_id = to_id(npc_spawn(500000, 0, 100000, "AngerC", "raider", "arvonian_destroyer", "behav_npcship"))
+    c_foe = to_id(npc_spawn(500000, 0, 103000, "FoeC", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    add_role(c_foe, "ship")
+    set_inventory_value(c_id, "blackboard:target", c_foe)
+    c_ret = a2x_add_ai(c_id, "CHASE_ANGER")
+
+    # --- D: DIR_THROTTLE -> a target point along the heading + the goto_object_or_location brain ---
+    d_id = npc_spawn(700000, 0, 100000, "DirD", "raider", "arvonian_destroyer", "behav_npcship")
+    d_ret = a2x_dir_throttle(d_id, 270, 0.5)
+
+    # --- E: DEFEND -> prefab_npc_defender role + a protect-area objective ---
+    e_id = npc_spawn(900000, 0, 100000, "DefE", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    add_role(e_id, "prefab_npc_defender")
+    objective_add(e_id, objective_protect_area)
+
+    # --- F: FOLLOW_COMMS_ORDERS -> civ+friendly+defender roles + give_orders_type ---
+    f_id = npc_spawn(1100000, 0, 100000, "OrdF", "civ", "tsn_battle_cruiser", "behav_npcship")
+    add_role(f_id, "civ")
+    add_role(f_id, "friendly")
+    add_role(f_id, "prefab_npc_defender")
+    set_inventory_value(f_id, "give_orders_type", "objective/orders/defender")
+
+    await delay_sim(2)
+    brains_run_all(None)
+    brains_run_all(None)
+
+    # A: POINT_THROTTLE target -> the flipped point
+    a_tx = get_data_set_value(a_id, "target_pos_x")
+    test_expect("point_throttle_target_x_flipped", a_tx == 98000, f"target_pos_x {a_tx} expected 98000")
+
+    # B: PROCEED_TO_EXIT -> the spawn point
+    b_sp = to_object(b_id).spawn_pos
+    b_tx = get_data_set_value(b_id, "target_pos_x")
+    test_expect("proceed_to_exit_returns_type", b_ret == "PROCEED_TO_EXIT", f"a2x_add_ai returned {b_ret}")
+    test_expect("proceed_to_exit_targets_spawn", b_tx == b_sp.x, f"target_pos_x {b_tx} expected spawn {b_sp.x}")
+
+    # C: CHASE_ANGER -> ai_chase_current brain, holding the current target
+    test_expect("chase_anger_is_chase_current", c_ret == "ai_chase_current", f"a2x_add_ai returned {c_ret}")
+    c_tgt = get_inventory_value(c_id, "blackboard:target", 0)
+    test_expect("chase_anger_chases_target", c_tgt == c_foe, f"blackboard:target {c_tgt} expected {c_foe}")
+
+    # D: DIR_THROTTLE -> goto brain + a target point set (mechanism; heading convention is a
+    # separate in-engine check, so only assert the point exists, not its direction)
+    test_expect("dir_throttle_is_goto_brain", d_ret == "goto_object_or_location", f"a2x_dir_throttle returned {d_ret}")
+    d_tp = get_inventory_value(d_id, "blackboard:target_point")
+    test_expect("dir_throttle_sets_target_point", d_tp is not None, "blackboard:target_point unset")
+
+    # E: DEFEND -> defender role + a linked objective
+    test_expect("defend_defender_role", has_role(e_id, "prefab_npc_defender"), "missing prefab_npc_defender role")
+    e_obj = linked_to(e_id, "OBJECTIVE")
+    test_expect("defend_has_objective", len(e_obj) > 0, f"objective links {len(e_obj)} expected > 0")
+
+    # F: FOLLOW_COMMS_ORDERS -> orderable roles + give_orders_type
+    test_expect("follow_orders_defender_role", has_role(f_id, "prefab_npc_defender"), "missing defender role")
+    test_expect("follow_orders_give_orders_type", get_inventory_value(f_id, "give_orders_type") == "objective/orders/defender", "give_orders_type unset")
+    ->END
+
+@map/test_convert_ai "TEST convert_ai"
+" Conformance test for the converter's assumed add_ai behaviors (POINT_THROTTLE / PROCEED_TO_EXIT
+" / CHASE_ANGER / DIR_THROTTLE / DEFEND / FOLLOW_COMMS_ORDERS).
+    test_begin("convert_ai")
+    await task_schedule(run_test_convert_ai)
+    test_report_strict("convert_ai")

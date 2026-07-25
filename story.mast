@@ -1,0 +1,7 @@
+# A2x Test Range - conformance tests for the arme2cosmos converter's ASSUMED behaviors: that
+# the a2x / LegendaryMissions calls the tool emits actually produce the intended runtime effect
+# (the tool's own unit tests only check that the right call is emitted). A standalone mission
+# that loads the built LM mastlibs, so these tests never ship inside LM or sbs_utils. Run one:
+#     python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_ai --test 30
+import maps/test_harness.py
+import maps/test_convert_ai.mast

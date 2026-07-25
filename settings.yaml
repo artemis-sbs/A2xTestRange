@@ -1,0 +1,9 @@
+# LM Test Range - deterministic conformance runs. Players and autoplay are OFF by default
+# so a test map controls its own actors; a map that needs them turns them on itself.
+AUTO_START: false
+DIFFICULTY: 5
+PLAYER_COUNT: 1
+PLAYER_CREATE_DEFAULT: false
+
+AUTO_PLAY:
+    enable: false
