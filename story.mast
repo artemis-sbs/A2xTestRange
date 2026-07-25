@@ -26,5 +26,6 @@ import maps/test_convert_probe.mast
 import maps/test_convert_conditions.mast
 import maps/test_convert_special.mast
 import maps/test_convert_spawn.mast
+import maps/test_convert_named.mast
 import maps/heading_demo.mast
 import maps/angle_demo.mast

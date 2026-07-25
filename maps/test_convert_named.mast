@@ -1,0 +1,29 @@
+# Conformance test: the converter's runtime name resolver -- a2x_named(name) resolves a 2.8
+# object NAME to a live Cosmos id (for conditions/commands referencing an object the tool
+# couldn't statically capture). Returns None when absent, which is SAFE to pass to
+# object_exists / distance_id (unlike a bare role(name) set, which throws). See a2x/spawn.py named.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_named --test 15
+
+=== run_test_convert_named
+metadata: ``` yaml
+type: test/convert_named
+```
+    side_ensure("tsn", "TSN")
+    o = to_id(npc_spawn(100000, 0, 100000, "Findme", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    # resolves a live object by name
+    test_expect("named_resolves_id", a2x_named("Findme") == o, f"a2x_named('Findme') {a2x_named('Findme')} expected {o}")
+    # absent name -> None
+    test_expect("named_absent_none", a2x_named("Ghost") is None, "an absent name should resolve to None")
+    # None is safe in the condition primitives (no crash, evaluates false)
+    test_expect("named_object_exists_safe", not object_exists(a2x_named("Ghost")), "object_exists(None) should be False")
+    test_expect("named_distance_safe", sbs.distance_id(a2x_named("Ghost"), o) > 1000000, "distance_id(None, x) should be a huge distance, not a crash")
+    ->END
+
+@map/test_convert_named "TEST convert_named"
+" Conformance test for the converter's runtime name resolver a2x_named.
+    test_begin("convert_named")
+    await task_schedule(run_test_convert_named)
+    test_report_strict("convert_named")
