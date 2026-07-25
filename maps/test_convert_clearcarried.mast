@@ -1,0 +1,34 @@
+# Conformance test: the converter's 2.8 clear_player_station_carried mapping --
+# a2x_clear_station_carried deletes a station's STANDBY (in-hangar) single-seat craft
+# (linked_to(station,"hangar_craft") & role("standby") & role("cockpit")), leaving any
+# already-launched craft flying. See a2x/spawn.py clear_station_carried.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_clearcarried --test 15
+
+=== run_test_convert_clearcarried
+metadata: ``` yaml
+type: test/convert_clearcarried
+```
+    side_ensure("tsn", "TSN")
+    st = to_id(npc_spawn(100000, 0, 100000, "DS1", "tsn", "starbase_1", "behav_station"))
+    # two single-seat craft hosted by the station: one STANDBY (in hangar), one LAUNCHED
+    c_standby = to_id(npc_spawn(100000, 0, 101000, "F1", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    c_launched = to_id(npc_spawn(100000, 0, 102000, "F2", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    for c in [c_standby, c_launched]:
+        add_role(c, "cockpit")
+        link(st, "hangar_craft", c)
+    add_role(c_standby, "standby")   # only this one is docked in the hangar
+    await delay_sim(1)
+
+    n = a2x_clear_station_carried(st)
+    await delay_sim(1)
+    test_expect("clear_removes_one", n == 1, f"removed {n} expected 1 (standby only)")
+    test_expect("standby_craft_removed", to_object(c_standby) is None, "standby craft should be deleted")
+    test_expect("launched_craft_kept", to_object(c_launched) is not None, "launched craft must NOT be deleted")
+    ->END
+
+@map/test_convert_clearcarried "TEST convert_clearcarried"
+" Conformance test for the converter's 2.8 clear_player_station_carried mapping.
+    test_begin("convert_clearcarried")
+    await task_schedule(run_test_convert_clearcarried)
+    test_report_strict("convert_clearcarried")
