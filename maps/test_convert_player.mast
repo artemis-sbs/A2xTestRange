@@ -1,0 +1,28 @@
+# Conformance test: the converter's 2.8 player_slot resolution -- a2x_player_ship(slot)
+# resolves a 2.8 player_slot (0..7, the player ships) to the Cosmos player-ship ID (the
+# slot-th member of role("__player__")). Used when a mission references the player by slot
+# with no explicit create:player (e.g. set_player_carried_type). See a2x/spawn.py player_ship.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_player --test 15
+
+=== run_test_convert_player
+metadata: ``` yaml
+type: test/convert_player
+```
+    side_ensure("tsn", "TSN")
+    p = to_id(player_spawn(0, 0, 0, "P0", "tsn", "tsn_battle_cruiser"))
+    add_role(p, "default_player_ship")
+    signal_emit("create_player_ships", None)
+    await delay_sim(2)
+
+    # slot 0 -> the (first) player ship's ID
+    test_expect("player_slot0_resolves_to_id", a2x_player_ship(0) == p, f"a2x_player_ship(0) {a2x_player_ship(0)} expected {p}")
+    # a slot with no player ship -> None (no crash)
+    test_expect("player_empty_slot_none", a2x_player_ship(5) is None, f"a2x_player_ship(5) {a2x_player_ship(5)} expected None")
+    ->END
+
+@map/test_convert_player "TEST convert_player"
+" Conformance test for the converter's 2.8 player_slot -> player-ship ID resolution.
+    test_begin("convert_player")
+    await task_schedule(run_test_convert_player)
+    test_report_strict("convert_player")
