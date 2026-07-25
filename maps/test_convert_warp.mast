@@ -1,0 +1,35 @@
+# Conformance test: warpState (throttle), canBuild (station build flag), and the
+# angle/roll/pitch DEGREES heuristic (author-mistake values beyond pi are treated as
+# degrees). See a2x/props.py (warp/inv kinds) and a2x/coords.py _rad.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_warp --test 15
+
+=== run_test_convert_warp
+metadata: ``` yaml
+type: test/convert_warp
+```
+    side_ensure("tsn", "TSN")
+    o = to_id(npc_spawn(100000, 0, 100000, "WShip", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    # 2.8 warpState is really the throttle: 0-4 -> throttle 1-5 (+1)
+    a2x_set_object_property(o, "warpState", 3)
+    test_expect("warp_offset_plus_one", to_object(o).data_set.get("throttle", 0) == 4, f"throttle {to_object(o).data_set.get('throttle', 0)} expected 4")
+    a2x_set_object_property(o, "warpState", 0)
+    test_expect("warp_zero_is_throttle_one", to_object(o).data_set.get("throttle", 0) == 1, f"throttle expected 1")
+
+    # canBuild -> a2x_can_build inventory (LM build console reads it)
+    a2x_set_object_property(o, "canBuild", 0)
+    test_expect("canbuild_inventory_zero", get_inventory_value(o, "a2x_can_build", -1) == 0, f"a2x_can_build {get_inventory_value(o, 'a2x_can_build', -1)} expected 0")
+
+    # degrees heuristic: angle 180 (deg, > pi) -> radians -> pi -> north (Cosmos +Z)
+    a2x_set_object_property(o, "angle", 180)
+    fn = to_object(o).engine_object.forward_vector()
+    test_expect("angle_degrees_heuristic", fn.z > 0.9 and abs(fn.x) < 0.1, f"angle 180(deg) -> forward ({fn.x:.2f},{fn.z:.2f}) expected ~(0,1) north")
+    ->END
+
+@map/test_convert_warp "TEST convert_warp"
+" Conformance test for warpState / canBuild / the degrees heuristic.
+    test_begin("convert_warp")
+    await task_schedule(run_test_convert_warp)
+    test_report_strict("convert_warp")
