@@ -1,0 +1,42 @@
+# Conformance test: the converter's 2.8 set_damcon_members mapping -- that
+# a2x_set_damcon_members(ship, team_index, value) sets the HP of the Cosmos damcon team
+# DC{team_index+1} (each of the 3 teams is one grid lifeform with HP, max grid_get_max_hp
+# = 6). 2.8 value is the team strength/HP (0 downed .. 4 full), clamped to the Cosmos max.
+# Needs a real player ship (damcons live on the ship grid). See a2x/props.py set_damcon_members.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_damcon --test 20
+
+=== run_test_convert_damcon
+metadata: ``` yaml
+type: test/convert_damcon
+```
+    side_ensure("tsn", "TSN")
+    p = to_id(player_spawn(0, 0, 0, "DamconP", "tsn", "tsn_battle_cruiser"))
+    add_role(p, "default_player_ship")
+    signal_emit("create_player_ships", None)
+    await delay_sim(3)
+
+    # team 0 (DC1) -> HP 4
+    ok0 = a2x_set_damcon_members(p, 0, 4)
+    test_expect("damcon_set_returns_true", ok0, "set_damcon_members returned False (no ship grid?)")
+    hm = sbs.get_hull_map(p)
+    dc1 = hm.get_grid_object_by_name("DC1")
+    test_expect("damcon_hp_set_to_value", get_inventory_value(dc1.unique_ID, "HP", -1) == 4, f"DC1 HP {get_inventory_value(dc1.unique_ID, 'HP', -1)} expected 4")
+
+    # value above the Cosmos max clamps to grid_get_max_hp() (6)
+    a2x_set_damcon_members(p, 0, 10)
+    test_expect("damcon_hp_clamped_to_max", get_inventory_value(hm.get_grid_object_by_name("DC1").unique_ID, "HP", -1) == 6, f"DC1 HP expected clamp to 6")
+
+    # value 0 -> downed team (HP 0)
+    a2x_set_damcon_members(p, 1, 0)
+    test_expect("damcon_hp_zero_downed", get_inventory_value(hm.get_grid_object_by_name("DC2").unique_ID, "HP", -1) == 0, f"DC2 HP expected 0")
+
+    # team_index 0..2 only -> invalid index returns False
+    test_expect("damcon_invalid_index_false", not a2x_set_damcon_members(p, 3, 4), "team_index 3 should return False")
+    ->END
+
+@map/test_convert_damcon "TEST convert_damcon"
+" Conformance test for the converter's 2.8 set_damcon_members mapping (team HP).
+    test_begin("convert_damcon")
+    await task_schedule(run_test_convert_damcon)
+    test_report_strict("convert_damcon")
