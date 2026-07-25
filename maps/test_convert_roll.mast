@@ -1,0 +1,33 @@
+# Conformance test: the converter's 2.8 roll mapping -- a2x_set_object_property(obj, "roll", r)
+# composes a roll about the object's forward axis onto its orientation, WITHOUT changing its
+# facing. 2.8 roll is radians; the corpus uses pi (a 180-degree flip, sign-invariant under the
+# X/Z mirror). A pi roll negates the right/up vectors and leaves forward unchanged. Asserts
+# the recorded orientation vectors (a decision). See a2x/coords.py set_roll.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_roll --test 15
+
+=== run_test_convert_roll
+metadata: ``` yaml
+type: test/convert_roll
+```
+    side_ensure("tsn", "TSN")
+    o = to_id(npc_spawn(100000, 0, 100000, "Roller", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    f0 = to_object(o).engine_object.forward_vector()
+    r0 = to_object(o).engine_object.right_vector()
+    a2x_set_object_property(o, "roll", 3.14159265)   # pi
+    f1 = to_object(o).engine_object.forward_vector()
+    r1 = to_object(o).engine_object.right_vector()
+
+    # facing (forward) is unchanged by a roll
+    test_expect("roll_keeps_facing", abs(f1.x - f0.x) < 0.02 and abs(f1.y - f0.y) < 0.02 and abs(f1.z - f0.z) < 0.02, f"forward moved ({f0.x:.2f},{f0.z:.2f})->({f1.x:.2f},{f1.z:.2f})")
+    # a pi roll flips the right vector (and up) -> right = -right
+    test_expect("roll_pi_flips_right", abs(r1.x + r0.x) < 0.02 and abs(r1.y + r0.y) < 0.02 and abs(r1.z + r0.z) < 0.02, f"right ({r0.x:.2f},{r0.y:.2f},{r0.z:.2f}) -> ({r1.x:.2f},{r1.y:.2f},{r1.z:.2f}) expected negated")
+    ->END
+
+@map/test_convert_roll "TEST convert_roll"
+" Conformance test for the converter's 2.8 roll (about the forward axis) mapping.
+    test_begin("convert_roll")
+    await task_schedule(run_test_convert_roll)
+    test_report_strict("convert_roll")
