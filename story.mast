@@ -22,5 +22,6 @@ import maps/test_convert_carried.mast
 import maps/test_convert_clearcarried.mast
 import maps/test_convert_fleet.mast
 import maps/test_convert_destroynear.mast
+import maps/test_convert_probe.mast
 import maps/heading_demo.mast
 import maps/angle_demo.mast
