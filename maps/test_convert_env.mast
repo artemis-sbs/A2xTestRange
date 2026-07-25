@@ -1,0 +1,40 @@
+# Conformance test: the converter's environment mappings -- nebulaIsOpaque -> nebula
+# max_throttle (data_set), and big_message -> the hero+letterbox overlay (smoke: runs
+# without error). Non-zero opaque keeps the throttle limit (2.0); 0 = no limit. See
+# a2x/props.py (bool_data), a2x/terrain.py set_nebula_opaque_all, a2x/comms.py big_message.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_env --test 15
+
+=== run_test_convert_env
+metadata: ``` yaml
+type: test/convert_env
+```
+    # a named nebula -> bool_data path (set_object_property nebulaIsOpaque)
+    neb = terrain_spawn(50000, 0, 50000, "TestNeb", "#,nebula", "nebula", "behav_nebula")
+    a2x_set_object_property(neb, "nebulaIsOpaque", 1)
+    test_expect("nebula_opaque_limits_throttle", neb.data_set.get("max_throttle", 0) == 2.0, f"max_throttle {neb.data_set.get('max_throttle', 0)} expected 2.0")
+    a2x_set_object_property(neb, "nebulaIsOpaque", 0)
+    test_expect("nebula_not_opaque_no_limit", neb.data_set.get("max_throttle", 0) == 0.0, f"max_throttle {neb.data_set.get('max_throttle', 0)} expected 0.0")
+
+    # global (nameless) nebulaIsOpaque -> every nebula
+    neb2 = terrain_spawn(60000, 0, 60000, "TestNeb2", "#,nebula", "nebula", "behav_nebula")
+    n = a2x_set_nebula_opaque_all(1)
+    test_expect("nebula_global_covers_all", n >= 2, f"updated {n} nebulae expected >= 2")
+    test_expect("nebula_global_sets_limit", neb2.data_set.get("max_throttle", 0) == 2.0, f"neb2 max_throttle {neb2.data_set.get('max_throttle', 0)} expected 2.0")
+    a2x_set_nebula_opaque_all(0)
+    test_expect("nebula_global_zero_no_limit", neb2.data_set.get("max_throttle", 0) == 0.0, f"neb2 max_throttle {neb2.data_set.get('max_throttle', 0)} expected 0.0")
+
+    # age -> inventory (science flavor), stored on the object
+    a2x_set_object_property(neb, "age", 3)
+    test_expect("age_stored_on_inventory", a2x_object_property(neb, "age") == 3, f"a2x_age {a2x_object_property(neb, 'age')} expected 3")
+
+    # big_message -> hero + letterbox overlay: smoke test (runs without raising)
+    a2x_big_message("CHAPTER ONE", "The Long Dark", "", to=None, time=2)
+    test_expect("big_message_ran", True, "big_message raised")
+    ->END
+
+@map/test_convert_env "TEST convert_env"
+" Conformance test for nebulaIsOpaque / age / big_message mappings.
+    test_begin("convert_env")
+    await task_schedule(run_test_convert_env)
+    test_report_strict("convert_env")
