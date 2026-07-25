@@ -1,0 +1,42 @@
+# Conformance test: the converter's 2.8 sensorSetting + gm_instructions mappings.
+# sensorSetting -> ship_base_scan_range (0 = unlimited/map size; N>0 = 100000/(3N) units),
+# per-object and the nameless global (all player ships). gm_instructions -> the shared
+# GAMEMASTER_INSTRUCTIONS variable the GM console panel renders. See a2x/props.py
+# sensor_range/set_sensor_setting_all and a2x/comms.py set_gm_instructions.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_sensor --test 15
+
+=== run_test_convert_sensor
+metadata: ``` yaml
+type: test/convert_sensor
+```
+    side_ensure("tsn", "TSN")
+    p = to_id(player_spawn(0, 0, 0, "P", "tsn", "tsn_battle_cruiser"))
+    add_role(p, "default_player_ship")
+    signal_emit("create_player_ships", None)
+    await delay_sim(2)
+
+    # per-object sensorSetting N=1 -> 100000/3 ~ 33333 units
+    a2x_set_object_property(p, "sensorSetting", 1)
+    r1 = to_object(p).data_set.get("ship_base_scan_range", 0)
+    test_expect("sensor_n1_range", abs(r1 - (100000.0 / 3.0)) < 1.0, f"range {r1} expected ~33333")
+
+    # N=0 -> unlimited (map size 100000)
+    a2x_set_object_property(p, "sensorSetting", 0)
+    test_expect("sensor_n0_unlimited", to_object(p).data_set.get("ship_base_scan_range", 0) == 100000.0, f"range expected 100000")
+
+    # global (nameless) sensorSetting N=4 -> 100000/12 on every player
+    cnt = a2x_set_sensor_setting_all(4)
+    test_expect("sensor_global_count", cnt >= 1, f"updated {cnt} players expected >= 1")
+    test_expect("sensor_global_range", abs(to_object(p).data_set.get("ship_base_scan_range", 0) - (100000.0 / 12.0)) < 1.0, f"range expected ~8333")
+
+    # gm_instructions -> shared GAMEMASTER_INSTRUCTIONS (title^body)
+    a2x_set_gm_instructions("Title", "Line one^Line two")
+    test_expect("gm_instructions_shared", get_shared_variable("GAMEMASTER_INSTRUCTIONS") == "Title^Line one^Line two", f"got {get_shared_variable('GAMEMASTER_INSTRUCTIONS')}")
+    ->END
+
+@map/test_convert_sensor "TEST convert_sensor"
+" Conformance test for the converter's 2.8 sensorSetting + gm_instructions mappings.
+    test_begin("convert_sensor")
+    await task_schedule(run_test_convert_sensor)
+    test_report_strict("convert_sensor")
