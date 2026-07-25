@@ -1,0 +1,38 @@
+# Conformance test: the converter's foundational spawn + side helpers. a2x_create_enemy
+# spawns at the 2.8->Cosmos mirrored position with the right side role; a2x_set_side_value
+# reassigns the side (1 enemy / 2 friendly / 0 neutral); a2x_set_ship_text writes scan text.
+# See a2x/spawn.py create_enemy + a2x/props.py set_side_value / set_ship_text.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_spawn --test 15
+
+=== run_test_convert_spawn
+metadata: ``` yaml
+type: test/convert_spawn
+```
+    side_ensure("enemy", "Enemy")
+    side_ensure("friendly", "Friendly")
+
+    # create_enemy at 2.8 (20000,0,30000) -> spawns at the mirrored Cosmos point (80000,_,70000)
+    e = a2x_create_enemy(20000, 0, 30000, "kralien_cruiser", name="E1")
+    await delay_sim(1)
+    eo = to_object(e)
+    test_expect("create_enemy_spawned", eo is not None, "create_enemy should return a live object")
+    test_expect("create_enemy_position_flipped", abs(eo.pos.x - 80000) < 1 and abs(eo.pos.z - 70000) < 1, f"pos ({eo.pos.x:.0f},{eo.pos.z:.0f}) expected (80000,70000)")
+    test_expect("create_enemy_side_role", has_role(e, "enemy"), "should carry the enemy role")
+
+    # set_side_value: 2 -> friendly, 1 -> enemy, 0 -> neutral
+    a2x_set_side_value(e, 2)
+    test_expect("side_value_friendly", to_object(e).side == "friendly" and has_role(e, "friendly"), f"side {to_object(e).side} expected friendly")
+    a2x_set_side_value(e, 1)
+    test_expect("side_value_enemy", to_object(e).side == "enemy", f"side {to_object(e).side} expected enemy")
+
+    # set_ship_text: name -> the name_tag scan field (read via get_data_set_value, index 0)
+    a2x_set_ship_text(e, name="Renamed")
+    test_expect("ship_text_name_tag", get_data_set_value(e, "name_tag") == "Renamed", f"name_tag {get_data_set_value(e, 'name_tag')} expected Renamed")
+    ->END
+
+@map/test_convert_spawn "TEST convert_spawn"
+" Conformance test for the converter's create_enemy flip + set_side_value + set_ship_text.
+    test_begin("convert_spawn")
+    await task_schedule(run_test_convert_spawn)
+    test_report_strict("convert_spawn")

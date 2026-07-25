@@ -1,0 +1,35 @@
+# Conformance test: the converter's 2.8 spatial/dock CONDITION helpers -- a2x_within (point
+# proximity), a2x_in_box (XZ rectangle), a2x_is_docked. All take 2.8 coords and flip them
+# internally, returning a bool for polling loops. See a2x/conditions.py.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_conditions --test 15
+
+=== run_test_convert_conditions
+metadata: ``` yaml
+type: test/convert_conditions
+```
+    side_ensure("tsn", "TSN")
+    # spawn at the Cosmos position that a 2.8 (20000,0,30000) maps to, so the 2.8-coord
+    # conditions can be checked against a known point.
+    o = to_id(npc_spawn(*a2x_pos(20000, 0, 30000), "Cond", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    # within: the object's own 2.8 point -> True; a far 2.8 point -> False
+    test_expect("within_at_point_true", a2x_within(o, 20000, 0, 30000, 500), "should be within 500 of its own point")
+    test_expect("within_far_false", not a2x_within(o, 90000, 0, 90000, 500), "should not be within 500 of a far point")
+
+    # in_box: a 2.8 XZ rectangle that brackets (20000,30000) -> inside True; a far box -> False
+    test_expect("in_box_inside_true", a2x_in_box(o, 10000, 20000, 30000, 40000, inside=True), "should be inside the bracketing box")
+    test_expect("in_box_far_false", not a2x_in_box(o, 80000, 80000, 90000, 95000, inside=True), "should not be inside a far box")
+    # outside-mode inverts
+    test_expect("in_box_outside_true", a2x_in_box(o, 80000, 80000, 90000, 95000, inside=False), "outside a far box should be True")
+
+    # is_docked: a fresh NPC is not docked
+    test_expect("not_docked", not a2x_is_docked(o), "a fresh ship should not be docked")
+    ->END
+
+@map/test_convert_conditions "TEST convert_conditions"
+" Conformance test for the converter's 2.8 within / in_box / is_docked conditions.
+    test_begin("convert_conditions")
+    await task_schedule(run_test_convert_conditions)
+    test_report_strict("convert_conditions")

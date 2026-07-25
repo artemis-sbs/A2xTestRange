@@ -1,0 +1,39 @@
+# Conformance test: the converter's 2.8 set_special ELITE ABILITY form (ability="Tractor"
+# etc.) -> the LM elite system. Scripted abilities add an elite/* role + schedule
+# handle_elite_abilities; engine abilities set an elite_* data_set flag. set_special_bits
+# enables abilities from a 2.8 bit-sum. See a2x/props.py set_special / set_special_bits.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_special --test 15
+
+=== run_test_convert_special
+metadata: ``` yaml
+type: test/convert_special
+```
+    side_ensure("raider", "Raider")
+    o = to_id(npc_spawn(500000, 0, 500000, "Elite", "raider", "arvonian_destroyer", "behav_npcship"))
+    await delay_sim(1)
+
+    # scripted ability (Tractor) -> the elite/tractor role
+    r = a2x_set_special(o, "Tractor", on=True)
+    test_expect("special_scripted_key", r == "elite/tractor", f"set_special(Tractor) returned {r}")
+    test_expect("special_scripted_role", has_role(o, "elite/tractor"), "should carry the elite/tractor role")
+    # clearing removes it
+    a2x_set_special(o, "Tractor", on=False)
+    test_expect("special_clear_removes", not has_role(o, "elite/tractor"), "clear should drop the role")
+
+    # engine ability (Stealth) -> the elite_main_scn_invis data_set flag
+    a2x_set_special(o, "Stealth", on=True)
+    test_expect("special_engine_flag", to_object(o).data_set.get("elite_main_scn_invis", 0) == 1, "Stealth should set the engine flag")
+
+    # bit-sum: bit 64 == Tractor
+    o2 = to_id(npc_spawn(500000, 0, 503000, "Elite2", "raider", "arvonian_destroyer", "behav_npcship"))
+    n = a2x_set_special_bits(o2, 64)
+    test_expect("special_bits_count", n == 1, f"set_special_bits(64) enabled {n} expected 1")
+    test_expect("special_bits_role", has_role(o2, "elite/tractor"), "bit 64 should enable Tractor")
+    ->END
+
+@map/test_convert_special "TEST convert_special"
+" Conformance test for the converter's 2.8 set_special elite-ability form + bit-sum.
+    test_begin("convert_special")
+    await task_schedule(run_test_convert_special)
+    test_report_strict("convert_special")
