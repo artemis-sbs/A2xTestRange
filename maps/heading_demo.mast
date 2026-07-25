@@ -15,8 +15,16 @@ metadata: ``` yaml
 type: demo/heading
 ```
     side_ensure("tsn", "TSN")
+    # A player ship at the centre so you can get on a console (Science shows the tactical map;
+    # it stays put with no orders, a fixed reference while the demo ships fan out around it).
+    # Mirrors the server console's create_default_player_ships: spawn + default_player_ship role
+    # + the create_player_ships signal, so console-select offers it.
+    dh_obs = to_id(player_spawn(0, 0, 0, "Observer", "tsn", "tsn_battle_cruiser"))
+    add_role(dh_obs, "default_player_ship")
+    set_inventory_value(dh_obs, "respawn_time", 5)
+    signal_emit("create_player_ships", None)
     # centre reference marker
-    npc_spawn(0, 0, 0, "ORIGIN", "tsn", "starbase_1", "behav_station")
+    npc_spawn(0, 3000, 0, "ORIGIN", "tsn", "starbase_1", "behav_station")
 
     dh_n = npc_spawn(0, 0, 0, "hdg000_should_go_N", "tsn", "tsn_battle_cruiser", "behav_npcship")
     a2x_dir_throttle(dh_n, 0, 0.4)
