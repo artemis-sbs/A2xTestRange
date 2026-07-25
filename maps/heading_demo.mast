@@ -1,12 +1,16 @@
 # Visual demo for the DIR_THROTTLE / 2.8 heading convention. Spawns four ships at the origin,
-# each driven by a2x_dir_throttle at a cardinal 2.8 heading, labelled with the compass direction
-# that heading MEANS in 2.8. Run it with the GUI and watch them fan out from the centre station:
-#   heading 0   -> should fly NORTH   (up)
-#   heading 90  -> should fly EAST     (right)
-#   heading 180 -> should fly SOUTH    (down)
-#   heading 270 -> should fly WEST     (left)
-# If a ship flies the wrong way, the a2x dir_throttle direction signs need flipping. A slow
-# throttle (0.4) keeps them on screen a while. Open the Game Master console to watch the map.
+# each driven by a2x_dir_throttle at a cardinal 2.8 heading. Run with the GUI and watch them fan
+# out from the centre station.
+#
+# IMPORTANT: a2x mirrors 2.8 coordinates (Cosmos = 100000 - x on X and Z). Directions mirror the
+# SAME way so a ship still flies toward its (mirrored) 2.8 destination -- so 2.8 EAST correctly
+# appears on SCREEN-LEFT in Cosmos, not screen-right. The EXPECTED Cosmos screen directions are:
+#   heading 0   (2.8 North) -> screen UP
+#   heading 90  (2.8 East)  -> screen LEFT     (mirror of East; NOT a bug)
+#   heading 180 (2.8 South) -> screen DOWN
+#   heading 270 (2.8 West)  -> screen RIGHT
+# If a ship flies OTHER than its labelled screen direction, the dir_throttle signs are wrong.
+# Slow throttle (0.4) keeps them on screen; open the Game Master console to watch the map.
 #
 # Run:  python -m cosmos_dev.mission_runner A2xTestRange --map heading_demo --gui
 
@@ -26,13 +30,13 @@ type: demo/heading
     # centre reference marker
     npc_spawn(0, 3000, 0, "ORIGIN", "tsn", "starbase_1", "behav_station")
 
-    dh_n = npc_spawn(0, 0, 0, "hdg000_should_go_N", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    dh_n = npc_spawn(0, 0, 0, "hdg000_2p8N_screenUP", "tsn", "tsn_battle_cruiser", "behav_npcship")
     a2x_dir_throttle(dh_n, 0, 0.4)
-    dh_e = npc_spawn(0, 0, 0, "hdg090_should_go_E", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    dh_e = npc_spawn(0, 0, 0, "hdg090_2p8E_screenLEFT", "tsn", "tsn_battle_cruiser", "behav_npcship")
     a2x_dir_throttle(dh_e, 90, 0.4)
-    dh_s = npc_spawn(0, 0, 0, "hdg180_should_go_S", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    dh_s = npc_spawn(0, 0, 0, "hdg180_2p8S_screenDOWN", "tsn", "tsn_battle_cruiser", "behav_npcship")
     a2x_dir_throttle(dh_s, 180, 0.4)
-    dh_w = npc_spawn(0, 0, 0, "hdg270_should_go_W", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    dh_w = npc_spawn(0, 0, 0, "hdg270_2p8W_screenRIGHT", "tsn", "tsn_battle_cruiser", "behav_npcship")
     a2x_dir_throttle(dh_w, 270, 0.4)
     ->END
 

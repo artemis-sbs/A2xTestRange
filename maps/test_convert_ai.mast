@@ -69,6 +69,9 @@ type: test/convert_ai
     test_expect("dir_throttle_is_goto_brain", d_ret == "goto_object_or_location", f"a2x_dir_throttle returned {d_ret}")
     d_tp = get_inventory_value(d_id, "blackboard:target_point")
     test_expect("dir_throttle_sets_target_point", d_tp is not None, "blackboard:target_point unset")
+    # Lock the heading convention: heading 270 = 2.8 West, which under the a2x coordinate mirror
+    # is Cosmos +X (the ship at x=700000 must aim to greater x). Regression guard for the signs.
+    test_expect("dir_throttle_heading270_targets_plus_x", d_tp is not None and d_tp.x > 700000, f"target_point.x {d_tp.x if d_tp is not None else None} expected > 700000 (heading 270 -> +X)")
 
     # E: DEFEND -> defender role + a linked objective
     test_expect("defend_defender_role", has_role(e_id, "prefab_npc_defender"), "missing prefab_npc_defender role")
