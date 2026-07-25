@@ -1,0 +1,33 @@
+# Conformance test: the converter's 2.8 set_fleet_property mapping -- a2x_set_fleet_property
+# resolves the fleet agent for a 2.8 fleet index (via a fleet_<index> ship's my_fleet_id) and
+# sets the general fleet_spacing / fleet_max_radius formation-ring keys the LM
+# scatter-formation brain reads. See a2x/props.py set_fleet_property + fleets/brain_fleet.mast.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_fleet --test 15
+
+=== run_test_convert_fleet
+metadata: ``` yaml
+type: test/convert_fleet
+```
+    side_ensure("enemy", "Enemy")
+    fleet = fleet_spawn(Vec3(100000, 0, 100000), "enemy")
+    fid = to_id(fleet)
+    ship = to_id(npc_spawn(100000, 0, 100000, "E1", "enemy", "kralien_cruiser", "behav_npcship"))
+    add_role(ship, "fleet_20")
+    fleet_add(fid, ship)
+    await delay_sim(1)
+
+    n = a2x_set_fleet_property(20, "fleetSpacing", 800)
+    a2x_set_fleet_property(20, "fleetMaxRadius", 2500)
+    test_expect("fleet_prop_finds_agent", n == 1, f"updated {n} agents expected 1")
+    test_expect("fleet_spacing_set", get_inventory_value(fid, "fleet_spacing", 0) == 800, f"fleet_spacing {get_inventory_value(fid, 'fleet_spacing', 0)} expected 800")
+    test_expect("fleet_max_radius_set", get_inventory_value(fid, "fleet_max_radius", 0) == 2500, f"fleet_max_radius {get_inventory_value(fid, 'fleet_max_radius', 0)} expected 2500")
+    # an unmapped fleet property -> 0 (no-op)
+    test_expect("fleet_unmapped_prop_noop", a2x_set_fleet_property(20, "fleetBogus", 1) == 0, "unmapped fleet property should no-op")
+    ->END
+
+@map/test_convert_fleet "TEST convert_fleet"
+" Conformance test for the converter's 2.8 set_fleet_property mapping.
+    test_begin("convert_fleet")
+    await task_schedule(run_test_convert_fleet)
+    test_report_strict("convert_fleet")
