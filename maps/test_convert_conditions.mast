@@ -24,8 +24,17 @@ type: test/convert_conditions
     # outside-mode inverts
     test_expect("in_box_outside_true", a2x_in_box(o, 80000, 80000, 90000, 95000, inside=False), "outside a far box should be True")
 
-    # is_docked: a fresh NPC is not docked
+    # within: inclusive boundary -- a 2.8 point exactly `radius` away (the flip is isometric,
+    # so 2.8 distance == Cosmos distance). radius == dist -> True; radius < dist -> False.
+    test_expect("within_boundary_inclusive", a2x_within(o, 21000, 0, 30000, 1000), "distance==radius should be within (<=)")
+    test_expect("within_just_outside_false", not a2x_within(o, 21000, 0, 30000, 999), "distance>radius should be outside")
+
+    # is_docked: a fresh NPC is not docked; a "docked" dock_state marker -> docked
     test_expect("not_docked", not a2x_is_docked(o), "a fresh ship should not be docked")
+    set_data_set_value(o, "dock_state", "docked")
+    test_expect("is_docked_true", a2x_is_docked(o), "dock_state 'docked' should read as docked")
+    set_data_set_value(o, "dock_state", "undocked")
+    test_expect("is_docked_undocked_false", not a2x_is_docked(o), "dock_state 'undocked' should read as not docked")
     ->END
 
 @map/test_convert_conditions "TEST convert_conditions"

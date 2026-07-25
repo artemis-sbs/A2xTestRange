@@ -31,5 +31,6 @@ import maps/test_convert_creates.mast
 import maps/test_convert_fleetcoeff.mast
 import maps/test_convert_terrain.mast
 import maps/test_convert_misc.mast
+import maps/test_convert_captain_driver.mast
 import maps/heading_demo.mast
 import maps/angle_demo.mast

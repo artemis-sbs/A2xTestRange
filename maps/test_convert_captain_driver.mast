@@ -1,0 +1,40 @@
+# Conformance test: the LM a2x_captain_driver runtime effect for the 2.8 captain personalities
+# that need active behavior. Focuses on SEETHING (starts the fleet enraged at a player) --
+# the immediate, assertable one. bombastic (proactive hails, 45-90s) and duplicitous
+# (fake-surrender re-engage, 60-150s) are time-gated, so only their trait-set is asserted
+# (test_convert_captain) + compile. See LM comms/a2x_captain.mast + a2x/props.py set_captain.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_captain_driver --test 20
+
+=== run_test_convert_captain_driver
+metadata: ``` yaml
+type: test/convert_captain_driver
+```
+    side_ensure("raider", "Raider")
+    side_ensure("tsn", "TSN")
+    # a player for the enraged fleet to target
+    p = to_id(player_spawn(0, 0, 0, "P", "tsn", "tsn_battle_cruiser"))
+    add_role(p, "default_player_ship")
+    signal_emit("create_player_ships", None)
+
+    # a fleet with a captain ship (my_fleet_id set by fleet_add -- the driver reads it)
+    fleet = fleet_spawn(Vec3(50000, 0, 50000), "raider")
+    fid = to_id(fleet)
+    cap = to_id(npc_spawn(50000, 0, 50000, "Seether", "raider", "arvonian_destroyer", "behav_npcship"))
+    fleet_add(fid, cap)
+    await delay_sim(2)
+
+    # baseline: the fleet is not yet angry at the player
+    test_expect("fleet_calm_before", fleet.get_heat_for(p) == 0, "fleet should start calm")
+
+    # seething (captain=3) -> a2x_set_captain schedules a2x_captain_driver -> fleet enraged
+    a2x_set_captain(cap, 3)
+    await delay_sim(3)   # let the driver task run
+    test_expect("seething_enrages_fleet", fleet.get_heat_for(p) > 0, f"seething should enrage the fleet at the player (heat {fleet.get_heat_for(p)})")
+    ->END
+
+@map/test_convert_captain_driver "TEST convert_captain_driver"
+" Conformance test for the LM captain driver (seething -> fleet enrage).
+    test_begin("convert_captain_driver")
+    await task_schedule(run_test_convert_captain_driver)
+    test_report_strict("convert_captain_driver")

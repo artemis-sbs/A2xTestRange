@@ -30,6 +30,12 @@ type: test/convert_sensor
     test_expect("sensor_global_count", cnt >= 1, f"updated {cnt} players expected >= 1")
     test_expect("sensor_global_range", abs(to_object(p).data_set.get("ship_base_scan_range", 0) - (100000.0 / 12.0)) < 1.0, f"range expected ~8333")
 
+    # extremes: negative -> unlimited (map size); a large N -> a tiny range (100000/(3N))
+    a2x_set_object_property(p, "sensorSetting", -1)
+    test_expect("sensor_negative_unlimited", to_object(p).data_set.get("ship_base_scan_range", 0) == 100000.0, "negative sensorSetting should be unlimited (map size)")
+    a2x_set_object_property(p, "sensorSetting", 10)
+    test_expect("sensor_high_n_tiny", abs(to_object(p).data_set.get("ship_base_scan_range", 0) - (100000.0 / 30.0)) < 1.0, f"N=10 range expected ~3333")
+
     # gm_instructions -> shared GAMEMASTER_INSTRUCTIONS (title^body)
     a2x_set_gm_instructions("Title", "Line one^Line two")
     test_expect("gm_instructions_shared", get_shared_variable("GAMEMASTER_INSTRUCTIONS") == "Title^Line one^Line two", f"got {get_shared_variable('GAMEMASTER_INSTRUCTIONS')}")
