@@ -8,5 +8,6 @@ import maps/test_convert_ai.mast
 import maps/test_convert_captain.mast
 import maps/test_convert_pirate.mast
 import maps/test_convert_angle.mast
+import maps/test_convert_skybox.mast
 import maps/heading_demo.mast
 import maps/angle_demo.mast
