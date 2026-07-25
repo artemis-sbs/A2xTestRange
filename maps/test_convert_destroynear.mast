@@ -1,0 +1,30 @@
+# Conformance test: the converter's 2.8 destroy_near-around-a-named-object mapping --
+# a2x_destroy_near_object deletes objects of a kind within radius of a live object's runtime
+# position, excluding the object itself, leaving objects outside the radius. See
+# a2x/spawn.py destroy_near_object.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_destroynear --test 15
+
+=== run_test_convert_destroynear
+metadata: ``` yaml
+type: test/convert_destroynear
+```
+    side_ensure("tsn", "TSN")
+    center = to_id(npc_spawn(50000, 0, 50000, "Center", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    near = to_id(terrain_spawn(52000, 0, 50000, "NebNear", "#,nebula", "nebula", "behav_nebula"))   # 2000 u away
+    far = to_id(terrain_spawn(70000, 0, 50000, "NebFar", "#,nebula", "nebula", "behav_nebula"))      # 20000 u away
+    await delay_sim(1)
+
+    n = a2x_destroy_near_object(center, 8000, "nebulas")
+    await delay_sim(1)
+    test_expect("destroynear_removed_one", n == 1, f"removed {n} expected 1 (near only)")
+    test_expect("near_nebula_gone", to_object(near) is None, "nebula within radius should be deleted")
+    test_expect("far_nebula_kept", to_object(far) is not None, "nebula outside radius must be kept")
+    test_expect("center_object_kept", to_object(center) is not None, "the centre object must not be deleted")
+    ->END
+
+@map/test_convert_destroynear "TEST convert_destroynear"
+" Conformance test for the converter's 2.8 destroy_near-around-named-object mapping.
+    test_begin("convert_destroynear")
+    await task_schedule(run_test_convert_destroynear)
+    test_report_strict("convert_destroynear")
