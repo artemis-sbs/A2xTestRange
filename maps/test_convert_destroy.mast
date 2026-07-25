@@ -1,0 +1,32 @@
+# Conformance test: the converter's 2.8 destroy-by-name fallback -- a2x_destroy_named(name)
+# deletes a space object the tool could not statically capture (created another way, or a
+# dead reference), and no-ops when no such object exists (as 2.8 does with a missing
+# destroy). See a2x/spawn.py destroy_named.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_destroy --test 15
+
+=== run_test_convert_destroy
+metadata: ``` yaml
+type: test/convert_destroy
+```
+    side_ensure("raider", "Raider")
+    npc_spawn(100000, 0, 100000, "Doomed", "raider", "arvonian_destroyer", "behav_npcship")
+    await delay_sim(1)
+
+    # destroy by name -> deletes exactly the one match
+    n1 = a2x_destroy_named("Doomed")
+    test_expect("destroy_named_deletes_one", n1 == 1, f"deleted {n1} expected 1")
+    await delay_sim(1)
+
+    # already gone -> a second call is a no-op (0)
+    test_expect("destroy_named_now_gone", a2x_destroy_named("Doomed") == 0, "object still present after destroy")
+
+    # a dead reference (never created) -> no-op, returns 0 (no crash)
+    test_expect("destroy_named_missing_noop", a2x_destroy_named("NeverExisted") == 0, "missing name should delete nothing")
+    ->END
+
+@map/test_convert_destroy "TEST convert_destroy"
+" Conformance test for the converter's 2.8 destroy-by-name fallback.
+    test_begin("convert_destroy")
+    await task_schedule(run_test_convert_destroy)
+    test_report_strict("convert_destroy")
