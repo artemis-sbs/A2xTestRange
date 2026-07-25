@@ -1,0 +1,34 @@
+# Visual demo for the DIR_THROTTLE / 2.8 heading convention. Spawns four ships at the origin,
+# each driven by a2x_dir_throttle at a cardinal 2.8 heading, labelled with the compass direction
+# that heading MEANS in 2.8. Run it with the GUI and watch them fan out from the centre station:
+#   heading 0   -> should fly NORTH   (up)
+#   heading 90  -> should fly EAST     (right)
+#   heading 180 -> should fly SOUTH    (down)
+#   heading 270 -> should fly WEST     (left)
+# If a ship flies the wrong way, the a2x dir_throttle direction signs need flipping. A slow
+# throttle (0.4) keeps them on screen a while. Open the Game Master console to watch the map.
+#
+# Run:  python -m cosmos_dev.mission_runner A2xTestRange --map heading_demo --gui
+
+=== run_heading_demo
+metadata: ``` yaml
+type: demo/heading
+```
+    side_ensure("tsn", "TSN")
+    # centre reference marker
+    npc_spawn(0, 0, 0, "ORIGIN", "tsn", "starbase_1", "behav_station")
+
+    dh_n = npc_spawn(0, 0, 0, "hdg000_should_go_N", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_dir_throttle(dh_n, 0, 0.4)
+    dh_e = npc_spawn(0, 0, 0, "hdg090_should_go_E", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_dir_throttle(dh_e, 90, 0.4)
+    dh_s = npc_spawn(0, 0, 0, "hdg180_should_go_S", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_dir_throttle(dh_s, 180, 0.4)
+    dh_w = npc_spawn(0, 0, 0, "hdg270_should_go_W", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_dir_throttle(dh_w, 270, 0.4)
+    ->END
+
+@map/heading_demo "DEMO dir_throttle headings"
+" Watch four ships fan out from the centre; each label says which compass direction its 2.8
+" heading should send it. Wrong direction -> flip the signs in a2x dir_throttle.
+    await task_schedule(run_heading_demo)

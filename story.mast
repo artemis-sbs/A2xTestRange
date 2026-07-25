@@ -5,3 +5,4 @@
 #     python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_ai --test 30
 import maps/test_harness.py
 import maps/test_convert_ai.mast
+import maps/heading_demo.mast
