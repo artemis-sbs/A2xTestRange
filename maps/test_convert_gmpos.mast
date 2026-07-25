@@ -1,0 +1,28 @@
+# Conformance test: the converter's 2.8 set_to_gm_position mapping -- a2x_set_to_gm_position
+# moves the GM-selected object to the GM's position (the gamemaster console ship, which
+# tracks the GM's clicks). Here a stand-in "gm" object supplies the position. See
+# a2x/props.py set_to_gm_position.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_gmpos --test 15
+
+=== run_test_convert_gmpos
+metadata: ``` yaml
+type: test/convert_gmpos
+```
+    side_ensure("tsn", "TSN")
+    gm = to_id(npc_spawn(50000, 10, 60000, "GMpos", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    obj = to_id(npc_spawn(10000, 0, 10000, "Movee", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    ok = a2x_set_to_gm_position(obj, gm)
+    test_expect("gmpos_returns_true", ok, "set_to_gm_position returned False")
+    op = to_object(obj).pos
+    gp = to_object(gm).pos
+    test_expect("gmpos_moved_to_gm", abs(op.x - gp.x) < 1 and abs(op.y - gp.y) < 1 and abs(op.z - gp.z) < 1, f"obj ({op.x:.0f},{op.y:.0f},{op.z:.0f}) expected gm ({gp.x:.0f},{gp.y:.0f},{gp.z:.0f})")
+    ->END
+
+@map/test_convert_gmpos "TEST convert_gmpos"
+" Conformance test for the converter's 2.8 set_to_gm_position mapping.
+    test_begin("convert_gmpos")
+    await task_schedule(run_test_convert_gmpos)
+    test_report_strict("convert_gmpos")

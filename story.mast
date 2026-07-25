@@ -14,5 +14,6 @@ import maps/test_convert_damcon.mast
 import maps/test_convert_player.mast
 import maps/test_convert_destroy.mast
 import maps/test_convert_sensor.mast
+import maps/test_convert_gmpos.mast
 import maps/heading_demo.mast
 import maps/angle_demo.mast
