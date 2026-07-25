@@ -1,0 +1,62 @@
+# Conformance test: the arme2cosmos converter's assumed 2.8 set_special ship/captain
+# mapping -- that a2x_set_captain / a2x_set_ship_power (which the tool now EMITS in place
+# of the old TODO) write the inventory / data_set values the LM comms + fleets addons
+# actually read. Mirrors test_convert_ai: assert the recorded DECISION (trait name,
+# surrender chance, upgrade coeff), never live physics. See props.py set_captain/set_ship_power.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_captain --test 20
+
+=== run_test_convert_captain
+metadata: ``` yaml
+type: test/convert_captain
+```
+    side_ensure("raider", "Raider")
+
+    # --- captain personalities (2.8 set_special captain=N) -> a2x_captain_trait (+ the
+    #     a2x_surrender_chance the LM surrender addon reads: 0 == never, high == readily) ---
+    cap = to_id(npc_spawn(100000, 0, 100000, "CapShip", "raider", "arvonian_destroyer", "behav_npcship"))
+
+    t_brave = a2x_set_captain(cap, 1)
+    test_expect("captain_brave_trait", t_brave == "brave", f"trait {t_brave} expected brave")
+    test_expect("captain_brave_never_surrender", get_inventory_value(cap, "a2x_surrender_chance", -1) == 0, f"surrender_chance {get_inventory_value(cap, 'a2x_surrender_chance', -1)} expected 0")
+
+    t_cow = a2x_set_captain(cap, 0)
+    test_expect("captain_cowardly_trait", t_cow == "cowardly", f"trait {t_cow} expected cowardly")
+    test_expect("captain_cowardly_high_surrender", get_inventory_value(cap, "a2x_surrender_chance", -1) == 90, f"surrender_chance {get_inventory_value(cap, 'a2x_surrender_chance', -1)} expected 90")
+
+    t_dup = a2x_set_captain(cap, 4)
+    test_expect("captain_duplicitous_trait", t_dup == "duplicitous", f"trait {t_dup} expected duplicitous")
+
+    t_exc = a2x_set_captain(cap, 5)
+    test_expect("captain_exceptional_trait", t_exc == "exceptional", f"trait {t_exc} expected exceptional")
+    test_expect("captain_exceptional_resists", get_inventory_value(cap, "a2x_surrender_chance", -1) == 20, f"surrender_chance {get_inventory_value(cap, 'a2x_surrender_chance', -1)} expected 20")
+
+    # -1 == 2.8 "leave unchanged" -> no trait written, returns None
+    t_none = a2x_set_captain(cap, -1)
+    test_expect("captain_minus1_is_noop", t_none is None, f"a2x_set_captain(-1) returned {t_none} expected None")
+
+    # --- ship power tiers (2.8 set_special ship=N) -> shield/beam/tube upgrade coeffs ---
+    shp = to_id(npc_spawn(300000, 0, 100000, "PowShip", "raider", "arvonian_destroyer", "behav_npcship"))
+
+    p_up = a2x_set_ship_power(shp, 0)     # upgraded
+    test_expect("ship_upgraded_coeff", p_up == 1.25, f"coeff {p_up} expected 1.25")
+    test_expect("ship_upgraded_beam_set", get_data_set_value(shp, "all_beam_upgrade_coeff") == 1.25, f"beam coeff {get_data_set_value(shp, 'all_beam_upgrade_coeff')} expected 1.25")
+
+    p_over = a2x_set_ship_power(shp, 1)   # overpowered
+    test_expect("ship_overpowered_coeff", p_over == 1.6, f"coeff {p_over} expected 1.6")
+    test_expect("ship_overpowered_shield_set", get_data_set_value(shp, "all_shield_upgrade_coeff") == 1.6, f"shield coeff {get_data_set_value(shp, 'all_shield_upgrade_coeff')} expected 1.6")
+
+    p_under = a2x_set_ship_power(shp, 2)  # underpowered
+    test_expect("ship_underpowered_coeff", p_under == 0.7, f"coeff {p_under} expected 0.7")
+    test_expect("ship_underpowered_tube_set", get_data_set_value(shp, "all_tube_upgrade_coeff") == 0.7, f"tube coeff {get_data_set_value(shp, 'all_tube_upgrade_coeff')} expected 0.7")
+
+    p_none = a2x_set_ship_power(shp, -1)  # leave unchanged
+    test_expect("ship_minus1_is_noop", p_none is None, f"a2x_set_ship_power(-1) returned {p_none} expected None")
+    ->END
+
+@map/test_convert_captain "TEST convert_captain"
+" Conformance test for the converter's 2.8 set_special ship/captain mapping
+" (captain personalities -> LM surrender/taunt traits; ship power -> upgrade coeffs).
+    test_begin("convert_captain")
+    await task_schedule(run_test_convert_captain)
+    test_report_strict("convert_captain")

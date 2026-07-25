@@ -1,0 +1,41 @@
+# Visual demo for the 2.8 `angle` (absolute facing) convention. Spawns four ships at the
+# centre, each STAMPED with a cardinal 2.8 angle via a2x_set_object_property(..., "angle").
+# They sit still (no throttle) so you can eyeball which way each one POINTS.
+#
+# 2.8 angle is radians CW-from-south; the X/Z map mirror makes Cosmos yaw = pi - angle. The
+# EXPECTED Cosmos screen facings (same mirror as the heading demo -- 2.8 East reads screen-LEFT):
+#   angle 0      (2.8 South) -> points screen DOWN  (Cosmos -Z)
+#   angle pi/2   (2.8 West)  -> points screen RIGHT (Cosmos +X)
+#   angle pi     (2.8 North) -> points screen UP    (Cosmos +Z)
+#   angle -pi/2  (2.8 East)  -> points screen LEFT  (Cosmos -X)
+# If a ship points OTHER than its label, the set_angle sign/offset in a2x/coords.py is wrong.
+# Open the Game Master console to watch the map.
+#
+# Run:  python -m cosmos_dev.mission_runner A2xTestRange --map angle_demo --gui
+
+=== run_angle_demo
+metadata: ``` yaml
+type: demo/angle
+```
+    side_ensure("tsn", "TSN")
+    # A player ship at the centre so you can get on a console (same as heading_demo).
+    ad_obs = to_id(player_spawn(0, 0, 0, "Observer", "tsn", "tsn_battle_cruiser"))
+    add_role(ad_obs, "default_player_ship")
+    set_inventory_value(ad_obs, "respawn_time", 5)
+    signal_emit("create_player_ships", None)
+    npc_spawn(0, 3000, 0, "ORIGIN", "tsn", "starbase_1", "behav_station")
+
+    ad_s = npc_spawn(0, 0, 6000, "ang0_2p8S_pointDOWN", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_set_object_property(ad_s, "angle", 0.0)
+    ad_w = npc_spawn(6000, 0, 0, "angHALFPI_2p8W_pointRIGHT", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_set_object_property(ad_w, "angle", 1.5707963)
+    ad_n = npc_spawn(0, 0, -6000, "angPI_2p8N_pointUP", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_set_object_property(ad_n, "angle", 3.1415927)
+    ad_e = npc_spawn(-6000, 0, 0, "angNEGHALFPI_2p8E_pointLEFT", "tsn", "tsn_battle_cruiser", "behav_npcship")
+    a2x_set_object_property(ad_e, "angle", -1.5707963)
+    ->END
+
+@map/angle_demo "DEMO angle facings"
+" Four ships stamped with cardinal 2.8 angles; each label says which screen direction it
+" should POINT. Wrong direction -> fix the set_angle sign/offset in a2x/coords.py.
+    await task_schedule(run_angle_demo)

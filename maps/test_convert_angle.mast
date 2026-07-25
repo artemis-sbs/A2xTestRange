@@ -1,0 +1,60 @@
+# Conformance test: the converter's assumed 2.8 `angle` (absolute facing) mapping -- that
+# a2x_set/addto/copy_object_property(obj, "angle", ...) set the engine rotation quaternion
+# so the ship faces the MIRROR of its 2.8 facing. 2.8 angle is radians, CW-from-south
+# (0=south, pi/2=west, pi=north, -pi/2=east); the X/Z map mirror makes Cosmos yaw = pi-a,
+# so forward_vector lands on the expected axis. Asserts the recorded forward vector (a
+# decision), not live physics. See a2x/coords.py set_angle/add_angle/copy_angle.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_angle --test 20
+
+=== run_test_convert_angle
+metadata: ``` yaml
+type: test/convert_angle
+```
+    side_ensure("tsn", "TSN")
+    a = to_id(npc_spawn(100000, 0, 100000, "AngA", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+
+    # 2.8 south (angle 0) -> Cosmos -Z (mirror of 2.8 south=+Z)
+    a2x_set_object_property(a, "angle", 0.0)
+    fa = to_object(a).engine_object.forward_vector()
+    test_expect("angle_south_faces_minus_z", fa.z < -0.9 and abs(fa.x) < 0.1, f"forward ({fa.x:.2f},{fa.z:.2f}) expected ~(0,-1)")
+
+    # 2.8 west (angle pi/2) -> Cosmos +X
+    a2x_set_object_property(a, "angle", 1.5707963)
+    fw = to_object(a).engine_object.forward_vector()
+    test_expect("angle_west_faces_plus_x", fw.x > 0.9 and abs(fw.z) < 0.1, f"forward ({fw.x:.2f},{fw.z:.2f}) expected ~(1,0)")
+
+    # 2.8 north (angle pi) -> Cosmos +Z
+    a2x_set_object_property(a, "angle", 3.1415927)
+    fn = to_object(a).engine_object.forward_vector()
+    test_expect("angle_north_faces_plus_z", fn.z > 0.9 and abs(fn.x) < 0.1, f"forward ({fn.x:.2f},{fn.z:.2f}) expected ~(0,1)")
+
+    # 2.8 east (angle -pi/2) -> Cosmos -X
+    a2x_set_object_property(a, "angle", -1.5707963)
+    fe = to_object(a).engine_object.forward_vector()
+    test_expect("angle_east_faces_minus_x", fe.x < -0.9 and abs(fe.z) < 0.1, f"forward ({fe.x:.2f},{fe.z:.2f}) expected ~(-1,0)")
+
+    # round-trip: set then read back the same 2.8 angle
+    a2x_set_object_property(a, "angle", 1.3)
+    back = a2x_object_property(a, "angle")
+    test_expect("angle_round_trips", abs(back - 1.3) < 0.001, f"read {back} expected 1.3")
+
+    # addto: a 2.8 clockwise nudge reverses to a Cosmos yaw of -d (mirror flips turn sense)
+    a2x_set_object_property(a, "angle", 3.1415927)   # face Cosmos +Z (yaw ~ 0)
+    y0 = math.atan2(to_object(a).engine_object.forward_vector().x, to_object(a).engine_object.forward_vector().z)
+    a2x_addto_object_property(a, "angle", 0.5)
+    y1 = math.atan2(to_object(a).engine_object.forward_vector().x, to_object(a).engine_object.forward_vector().z)
+    test_expect("angle_addto_reverses_sense", abs((y1 - y0) + 0.5) < 0.01, f"cosmos yaw delta {y1-y0:.3f} expected -0.5")
+
+    # copy: dst ends up facing the same way as src
+    b = to_id(npc_spawn(300000, 0, 100000, "AngB", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    a2x_set_object_property(a, "angle", 0.7)
+    a2x_copy_object_property(a, b, "angle")
+    test_expect("angle_copy_matches_src", abs(a2x_object_property(b, "angle") - 0.7) < 0.001, f"dst angle {a2x_object_property(b, 'angle')} expected 0.7")
+    ->END
+
+@map/test_convert_angle "TEST convert_angle"
+" Conformance test for the converter's 2.8 `angle` (absolute facing) mapping.
+    test_begin("convert_angle")
+    await task_schedule(run_test_convert_angle)
+    test_report_strict("convert_angle")

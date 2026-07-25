@@ -1,0 +1,40 @@
+# Conformance test: the converter's assumed 2.8 pirateRepWithStations mapping -- that
+# a2x_set_object_property writes a2x_pirate_rep (the key the LM docking addon reads) and
+# that the docking gate predicate (pirate role + rep <= 0 => refuse) behaves per 2.8:
+# only pirates are gated; rep 0 refuses docking, >0 allows. Mirrors the exact boolean in
+# LegendaryMissions/docking/docking.mast (+++ enable). See props.py _PROP pirateRepWithStations.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_pirate --test 20
+
+=== run_test_convert_pirate
+metadata: ``` yaml
+type: test/convert_pirate
+```
+    side_ensure("tsn", "TSN")
+    p = to_id(npc_spawn(100000, 0, 100000, "PirateP", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+
+    # the property maps to the a2x_pirate_rep inventory key the docking addon reads
+    a2x_set_object_property(p, "pirateRepWithStations", 5)
+    test_expect("pirate_rep_property_writes", get_inventory_value(p, "a2x_pirate_rep", -1) == 5, f"a2x_pirate_rep {get_inventory_value(p, 'a2x_pirate_rep', -1)} expected 5")
+
+    # a NON-pirate ship is never gated, even with rep 0 (2.8: ignored if not a pirate)
+    a2x_set_object_property(p, "pirateRepWithStations", 0)
+    refuse_nonpirate = has_role(p, "pirate") and get_inventory_value(p, "a2x_pirate_rep", 0) <= 0
+    test_expect("pirate_gate_nonpirate_allowed", not refuse_nonpirate, "non-pirate should never be dock-gated")
+
+    # once flagged a pirate: rep 0 refuses docking
+    add_role(p, "pirate")
+    refuse_rep0 = has_role(p, "pirate") and get_inventory_value(p, "a2x_pirate_rep", 0) <= 0
+    test_expect("pirate_gate_rep0_refused", refuse_rep0, "pirate with rep 0 should be refused")
+
+    # rep > 0 lets the pirate dock
+    a2x_set_object_property(p, "pirateRepWithStations", 5)
+    refuse_rep5 = has_role(p, "pirate") and get_inventory_value(p, "a2x_pirate_rep", 0) <= 0
+    test_expect("pirate_gate_rep5_allowed", not refuse_rep5, "pirate with rep 5 should be allowed")
+    ->END
+
+@map/test_convert_pirate "TEST convert_pirate"
+" Conformance test for the converter's 2.8 pirateRepWithStations mapping (pirate docking rep).
+    test_begin("convert_pirate")
+    await task_schedule(run_test_convert_pirate)
+    test_report_strict("convert_pirate")
