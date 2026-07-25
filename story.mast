@@ -16,5 +16,6 @@ import maps/test_convert_destroy.mast
 import maps/test_convert_sensor.mast
 import maps/test_convert_gmpos.mast
 import maps/test_convert_roll.mast
+import maps/test_convert_pitch.mast
 import maps/heading_demo.mast
 import maps/angle_demo.mast

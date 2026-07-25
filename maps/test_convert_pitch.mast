@@ -1,0 +1,34 @@
+# Conformance test: the converter's 2.8 pitch mapping -- a2x_set_object_property(obj, "pitch", p)
+# composes a pitch (nose up/down) about the object's right axis. 2.8 pitch is documented as
+# radians but the corpus uses degrees-magnitude values (>pi treated as degrees). A 90 (deg)
+# pitch tilts the forward vector to vertical; a small radian pitch gives a small Y tilt. See
+# a2x/coords.py set_pitch.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_pitch --test 15
+
+=== run_test_convert_pitch
+metadata: ``` yaml
+type: test/convert_pitch
+```
+    side_ensure("tsn", "TSN")
+    o = to_id(npc_spawn(100000, 0, 100000, "Pitcher", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    # a horizontally-facing ship pitched 90 (degrees) points its nose ~vertical (|forward.y| ~ 1)
+    a2x_set_object_property(o, "pitch", 90)
+    f1 = to_object(o).engine_object.forward_vector()
+    test_expect("pitch90_nose_vertical", abs(f1.y) > 0.9, f"forward.y {f1.y:.2f} expected ~+/-1 (nose vertical)")
+
+    # a small radian pitch on a fresh ship gives a small vertical tilt (~sin 0.5 = 0.48)
+    o2 = to_id(npc_spawn(300000, 0, 100000, "Pitcher2", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+    a2x_set_object_property(o2, "pitch", 0.5)
+    f2 = to_object(o2).engine_object.forward_vector()
+    test_expect("pitch_small_radian_tilt", abs(abs(f2.y) - 0.48) < 0.05, f"forward.y {f2.y:.2f} expected ~+/-0.48")
+    ->END
+
+@map/test_convert_pitch "TEST convert_pitch"
+" Conformance test for the converter's 2.8 pitch (nose up/down) mapping.
+    test_begin("convert_pitch")
+    await task_schedule(run_test_convert_pitch)
+    test_report_strict("convert_pitch")
