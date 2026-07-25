@@ -1,0 +1,32 @@
+# Conformance test: the converter's 2.8 set_player_carried_type capture -- a named carried
+# craft is a real spawned hangar object (hangar_random_craft_spawn returns SpawnData), so the
+# converter captures it under its 2.8 name and names it, letting later references
+# (set_relative_position / if_distance / add_ai targetName) resolve. See emit.c_set_player_carried_type.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_carried --test 15
+
+=== run_test_convert_carried
+metadata: ``` yaml
+type: test/convert_carried
+```
+    side_ensure("tsn", "TSN")
+    p = to_id(player_spawn(0, 0, 0, "Carrier", "tsn", "tsn_battle_cruiser"))
+    add_role(p, "default_player_ship")
+    signal_emit("create_player_ships", None)
+    await delay_sim(3)
+
+    # the pattern the converter now emits for a named carried craft: capture the spawn
+    craft = to_id(hangar_random_craft_spawn(p, "shuttle"))
+    await delay_sim(1)
+
+    test_expect("carried_craft_is_object", to_object(craft) is not None, "carried craft did not spawn")
+    # the captured reference resolves for later commands (set_relative_position / if_distance)
+    ok = a2x_set_relative_position(p, craft, 0, 250)
+    test_expect("carried_craft_reference_resolves", ok, "set_relative_position vs carried craft failed")
+    ->END
+
+@map/test_convert_carried "TEST convert_carried"
+" Conformance test for the converter's 2.8 set_player_carried_type name capture.
+    test_begin("convert_carried")
+    await task_schedule(run_test_convert_carried)
+    test_report_strict("convert_carried")
