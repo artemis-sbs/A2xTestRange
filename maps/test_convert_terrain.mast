@@ -1,0 +1,49 @@
+# Conformance test: the converter's bulk terrain creates + point-form destroy. a2x_create_
+# nebulas/asteroids/mines scatter N objects around a 2.8 point (flipped); a2x_destroy_near
+# deletes a kind within radius of a 2.8 point; a2x_destroy removes a captured handle. See
+# a2x/terrain.py + a2x/spawn.py.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_terrain --test 15
+
+=== run_test_convert_terrain
+metadata: ``` yaml
+type: test/convert_terrain
+```
+    side_ensure("enemy", "Enemy")
+
+    # bulk creates -> exactly N objects of each role
+    b_neb = len(to_object_list(role("nebula")))
+    a2x_create_nebulas(5, (30000, 0, 30000), radius=3000)
+    await delay_sim(1)
+    test_expect("nebulas_created", len(to_object_list(role("nebula"))) - b_neb == 5, f"created {len(to_object_list(role('nebula'))) - b_neb} nebulas expected 5")
+
+    # asteroids scatter as a FIELD (terrain_spawn_asteroid_scatter -> several per planned
+    # point), so assert a non-empty field rather than a literal count.
+    b_ast = len(to_object_list(role("asteroid")))
+    a2x_create_asteroids(6, (60000, 0, 60000), radius=3000)
+    await delay_sim(1)
+    test_expect("asteroids_created", len(to_object_list(role("asteroid"))) - b_ast >= 6, f"created {len(to_object_list(role('asteroid'))) - b_ast} asteroids expected >= 6 (a field)")
+
+    b_mine = len(to_object_list(role("mine")))
+    a2x_create_mines(4, (80000, 0, 80000), radius=3000)
+    await delay_sim(1)
+    test_expect("mines_created", len(to_object_list(role("mine"))) - b_mine == 4, f"created {len(to_object_list(role('mine'))) - b_mine} mines expected 4")
+
+    # destroy_near (point form): remove the nebulas we just scattered around (30000,0,30000)
+    removed = a2x_destroy_near(30000, 0, 30000, 6000, "nebulas")
+    await delay_sim(1)
+    test_expect("destroy_near_point_removed", removed >= 5, f"removed {removed} nebulas expected >= 5")
+
+    # a2x_destroy on a captured handle
+    x = to_id(npc_spawn(10000, 0, 10000, "Doomed2", "enemy", "kralien_cruiser", "behav_npcship"))
+    await delay_sim(1)
+    a2x_destroy(x)
+    await delay_sim(1)
+    test_expect("destroy_handle_removes", to_object(x) is None, "a2x_destroy should delete the captured object")
+    ->END
+
+@map/test_convert_terrain "TEST convert_terrain"
+" Conformance test for bulk terrain creates + point-form destroy.
+    test_begin("convert_terrain")
+    await task_schedule(run_test_convert_terrain)
+    test_report_strict("convert_terrain")

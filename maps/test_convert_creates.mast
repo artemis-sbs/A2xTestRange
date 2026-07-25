@@ -1,0 +1,59 @@
+# Conformance test: the converter's spawn layer -- a2x_create_station / _neutral / _monster /
+# _anomaly / _black_hole. Each takes 2.8 coords and spawns at the mirrored Cosmos point with
+# the right side/role. Anomaly pickupType 8 is a recoverable Beacon. See a2x/spawn.py.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_creates --test 15
+
+=== run_test_convert_creates
+metadata: ``` yaml
+type: test/convert_creates
+```
+    side_ensure("friendly", "Friendly")
+    side_ensure("civ", "Civ")
+    side_ensure("enemy", "Enemy")
+
+    # create_station: 2.8 (20000,0,30000) -> Cosmos (80000,_,70000), friendly side
+    s = a2x_create_station(20000, 0, 30000, "starbase_command", name="S1")
+    await delay_sim(1)
+    so = to_object(s)
+    test_expect("station_flipped", so is not None and abs(so.pos.x - 80000) < 1 and abs(so.pos.z - 70000) < 1, f"station pos ({so.pos.x if so else 0:.0f},{so.pos.z if so else 0:.0f}) expected (80000,70000)")
+    test_expect("station_friendly_role", has_role(s, "friendly"), "station should be friendly")
+
+    # create_neutral -> civ side
+    nn = a2x_create_neutral(20000, 0, 40000, "transport", name="N1")
+    await delay_sim(1)
+    test_expect("neutral_civ_side", to_object(nn).side == "civ", f"neutral side {to_object(nn).side} expected civ")
+
+    # create_anomaly pickupType 8 -> a recoverable Beacon (role beacon)
+    an = a2x_create_anomaly(20000, 0, 50000, 8, name="A1")
+    await delay_sim(1)
+    test_expect("anomaly_beacon_spawned", to_object(an) is not None, "anomaly (beacon) should spawn")
+    test_expect("anomaly_beacon_role", has_role(an, "beacon"), "pickupType 8 anomaly should carry the beacon role")
+
+    # create_black_hole -> spawns
+    bh = a2x_create_black_hole(20000, 0, 60000)
+    await delay_sim(1)
+    test_expect("black_hole_spawned", to_object(bh) is not None, "black hole should spawn")
+
+    # create_monster (shark=2) -> spawns, flipped
+    mo = a2x_create_monster(20000, 0, 70000, 2, name="M1")
+    await delay_sim(1)
+    test_expect("monster_spawned_flipped", to_object(mo) is not None and abs(to_object(mo).pos.x - 80000) < 1, "monster should spawn at the flipped point")
+
+    # create_generic (set-dressing object) -> spawns
+    g = a2x_create_generic(20000, 0, 80000, "transport", name="G1")
+    await delay_sim(1)
+    test_expect("generic_spawned", to_object(g) is not None, "generic object should spawn")
+
+    # create_player -> a player ship (side tsn)
+    side_ensure("tsn", "TSN")
+    pl = a2x_create_player(20000, 0, 90000, "tsn_battle_cruiser", name="P1")
+    await delay_sim(1)
+    test_expect("player_spawned", to_object(pl) is not None, "player ship should spawn")
+    ->END
+
+@map/test_convert_creates "TEST convert_creates"
+" Conformance test for the converter's spawn layer (station/neutral/anomaly/black_hole).
+    test_begin("convert_creates")
+    await task_schedule(run_test_convert_creates)
+    test_report_strict("convert_creates")

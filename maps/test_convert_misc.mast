@@ -1,0 +1,34 @@
+# Conformance test: the remaining a2x helpers -- a2x_clear_ai (remove an agent's brain
+# stack) and the comms/UI senders (a2x_incoming_comms_text / a2x_warning_popup /
+# a2x_spawn_external_program). The comms/UI ones are visual (need a client to SEE), so this
+# smoke-tests that they run without error headless. See a2x/ai.py + a2x/comms.py.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_misc --test 15
+
+=== run_test_convert_misc
+metadata: ``` yaml
+type: test/convert_misc
+```
+    side_ensure("raider", "Raider")
+    o = to_id(npc_spawn(200000, 0, 200000, "AITest", "raider", "arvonian_destroyer", "behav_npcship"))
+    await delay_sim(1)
+
+    # add_ai then clear_ai -> the brain stack is removed (runs without error)
+    a2x_add_ai(o, "CHASE_PLAYER")
+    await delay_sim(1)
+    a2x_clear_ai(o)
+    await delay_sim(1)
+    test_expect("clear_ai_ran", True, "add_ai + clear_ai should run without error")
+
+    # comms / UI senders: visual, so just confirm they run headless without raising
+    a2x_incoming_comms_text("Attention: this is a test transmission.", from_name="Tester")
+    a2x_warning_popup("Test warning message", title="Warning")
+    a2x_spawn_external_program("noop_program")
+    test_expect("comms_ui_smoke", True, "incoming_comms_text / warning_popup / spawn_external_program ran without error")
+    ->END
+
+@map/test_convert_misc "TEST convert_misc"
+" Conformance test for clear_ai + comms/UI senders (smoke).
+    test_begin("convert_misc")
+    await task_schedule(run_test_convert_misc)
+    test_report_strict("convert_misc")

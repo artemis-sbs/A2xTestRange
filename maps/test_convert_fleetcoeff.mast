@@ -1,0 +1,32 @@
+# Conformance test: the converter's 2.8 global difficulty knobs -- a2x_set_fleet_coeff maps
+# nonPlayer*/player* (value/100) onto per-ship data_set coeffs across the current NPC/player
+# ships. See a2x/props.py set_fleet_coeff.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_fleetcoeff --test 15
+
+=== run_test_convert_fleetcoeff
+metadata: ``` yaml
+type: test/convert_fleetcoeff
+```
+    side_ensure("enemy", "Enemy")
+    e = to_id(npc_spawn(100000, 0, 100000, "NPC", "enemy", "kralien_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    # nonPlayerSpeed 150 -> speed_coeff 1.5 on every NPC ship
+    n = a2x_set_fleet_coeff("nonPlayerSpeed", 150)
+    test_expect("fleet_coeff_updated_some", n >= 1, f"updated {n} NPCs expected >= 1")
+    test_expect("fleet_coeff_speed_set", abs(to_object(e).data_set.get("speed_coeff", 0) - 1.5) < 0.01, f"speed_coeff {to_object(e).data_set.get('speed_coeff', 0)} expected 1.5")
+
+    # nonPlayerShield 200 -> all_shield_upgrade_coeff 2.0
+    a2x_set_fleet_coeff("nonPlayerShield", 200)
+    test_expect("fleet_coeff_shield_set", abs(to_object(e).data_set.get("all_shield_upgrade_coeff", 0) - 2.0) < 0.01, f"shield coeff {to_object(e).data_set.get('all_shield_upgrade_coeff', 0)} expected 2.0")
+
+    # an unknown knob -> -1 (no-op)
+    test_expect("fleet_coeff_unknown", a2x_set_fleet_coeff("bogusKnob", 100) == -1, "unknown knob should return -1")
+    ->END
+
+@map/test_convert_fleetcoeff "TEST convert_fleetcoeff"
+" Conformance test for the converter's 2.8 global difficulty coeffs (set_fleet_coeff).
+    test_begin("convert_fleetcoeff")
+    await task_schedule(run_test_convert_fleetcoeff)
+    test_report_strict("convert_fleetcoeff")
