@@ -1,0 +1,45 @@
+# Conformance test: the converter's 2.8 if_distance BOOLEAN helpers -- a2x_distance_less /
+# a2x_distance_greater. Polling loops need a bool (the core distance_less/greater are awaitable
+# promises), and a raw sbs.distance_id errors ("was sent None") when a handle is None or names a
+# destroyed object. These evaluate False instead, matching 2.8: a condition about an object that
+# does not exist never fires. See a2x/conditions.py; a2x_named(None) coverage is in
+# test_convert_named.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_distance --test 15
+
+=== run_test_convert_distance
+metadata: ``` yaml
+type: test/convert_distance
+```
+    side_ensure("tsn", "TSN")
+    # two ships 1000 apart (the 2.8->Cosmos flip is isometric, so 2.8 distance == Cosmos distance)
+    a = to_id(npc_spawn(*a2x_pos(20000, 0, 30000), "DistA", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    b = to_id(npc_spawn(*a2x_pos(21000, 0, 30000), "DistB", "tsn", "tsn_battle_cruiser", "behav_npcship"))
+    await delay_sim(1)
+
+    # live pair: the comparators bracket the real 1000-unit separation
+    test_expect("distance_less_true", a2x_distance_less(a, b, 2000), "1000 apart should be less than 2000")
+    test_expect("distance_less_false", not a2x_distance_less(a, b, 500), "1000 apart should not be less than 500")
+    test_expect("distance_greater_true", a2x_distance_greater(a, b, 500), "1000 apart should be greater than 500")
+    test_expect("distance_greater_false", not a2x_distance_greater(a, b, 2000), "1000 apart should not be greater than 2000")
+
+    # order does not matter
+    test_expect("distance_symmetric", a2x_distance_less(b, a, 2000), "the test should be symmetric")
+
+    # the real-world crash: an object destroyed mid-mission leaves a stale id behind. Both
+    # directions must read False -- a destroyed object is untestable, not "infinitely far".
+    delete_object(b)
+    await delay_sim(1)
+    test_expect("destroyed_not_less", not a2x_distance_less(a, b, 1000000), "a destroyed object should not be 'close'")
+    test_expect("destroyed_not_greater", not a2x_distance_greater(a, b, 1), "a destroyed object should not be 'far'")
+
+    # a None handle is equally safe (what a2x_named returns for an absent name)
+    test_expect("none_not_less", not a2x_distance_less(None, a, 1000000), "None should not be 'close'")
+    test_expect("none_not_greater", not a2x_distance_greater(a, None, 1), "None should not be 'far'")
+    ->END
+
+@map/test_convert_distance "TEST convert_distance"
+" Conformance test for the converter's 2.8 if_distance boolean helpers.
+    test_begin("convert_distance")
+    await task_schedule(run_test_convert_distance)
+    test_report_strict("convert_distance")

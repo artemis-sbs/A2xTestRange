@@ -1,7 +1,8 @@
 # Conformance test: the converter's runtime name resolver -- a2x_named(name) resolves a 2.8
 # object NAME to a live Cosmos id (for conditions/commands referencing an object the tool
-# couldn't statically capture). Returns None when absent, which is SAFE to pass to
-# object_exists / distance_id (unlike a bare role(name) set, which throws). See a2x/spawn.py named.
+# couldn't statically capture). Returns None when absent, which is safe to pass to
+# object_exists and to the GUARDED a2x_distance_* helpers (unlike a bare role(name) set, which
+# throws -- or a raw sbs.distance_id, which errors "was sent None"). See a2x/spawn.py named.
 #
 # Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_named --test 15
 
@@ -19,7 +20,11 @@ type: test/convert_named
     test_expect("named_absent_none", a2x_named("Ghost") is None, "an absent name should resolve to None")
     # None is safe in the condition primitives (no crash, evaluates false)
     test_expect("named_object_exists_safe", not object_exists(a2x_named("Ghost")), "object_exists(None) should be False")
-    test_expect("named_distance_safe", sbs.distance_id(a2x_named("Ghost"), o) > 1000000, "distance_id(None, x) should be a huge distance, not a crash")
+    # A None handle must go through the guarded helpers -- both directions read False.
+    # (This used to assert sbs.distance_id(None, o) returned a huge distance; that was mock
+    # behaviour only, the engine errors "sbs.distance_id was sent None".)
+    test_expect("named_distance_less_safe", not a2x_distance_less(a2x_named("Ghost"), o, 1000000), "a missing object should not be 'close'")
+    test_expect("named_distance_greater_safe", not a2x_distance_greater(a2x_named("Ghost"), o, 1), "a missing object should not be 'far' either")
     ->END
 
 @map/test_convert_named "TEST convert_named"

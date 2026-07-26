@@ -24,6 +24,7 @@ import maps/test_convert_fleet.mast
 import maps/test_convert_destroynear.mast
 import maps/test_convert_probe.mast
 import maps/test_convert_conditions.mast
+import maps/test_convert_distance.mast
 import maps/test_convert_special.mast
 import maps/test_convert_spawn.mast
 import maps/test_convert_named.mast
