@@ -1,0 +1,78 @@
+# Conformance test: a2x_default_enemy_ai -- 2.8's IMPLICIT default enemy brain stack.
+#
+# A 2.8 mission never writes this stack out; the engine gives it to every enemy, and
+# <add_ai> only appears to OVERRIDE it. The converter therefore emits
+# a2x_default_enemy_ai for every enemy the mission does not re-brain. The failure this
+# guards is silent: with no brain a spawned enemy simply sits there, which is exactly
+# how the converted TrialsOfDeneb missions behaved.
+#
+# Assertions read the recorded DECISION (blackboard target / brain presence), never raw
+# physics. Scenarios are >150000u apart because brains sweep globally.
+#
+# Run: python -m cosmos_dev.mission_runner ../A2xTestRange --map test_convert_defaultai --test 30
+
+=== run_test_convert_defaultai
+metadata: ``` yaml
+type: test/convert_defaultai
+```
+    side_ensure("tsn", "TSN")
+    side_ensure("raider", "Raider")
+    side_set_relations("tsn", "raider", sbs.DIPLOMACY.HOSTILE)
+
+    # --- A: a defaulted enemy acquires a HOSTILE target. Note the brains sweep globally
+    # and ai_chase_station has no range cap, so this ship may well pick the station from
+    # scenario B -- what matters is that it acquires something diplomacy calls an enemy,
+    # not which one. Scenario B pins the priority order.
+    a_foe = to_id(npc_spawn(100000, 0, 100000, "FoeA", "raider", "kralien_cruiser", "behav_npcship"))
+    a_ply = to_id(player_spawn(100000, 0, 104000, "PlayerA", "tsn", "tsn_battle_cruiser"))
+    a_ret = a2x_default_enemy_ai(a_foe)
+
+    # --- B: a STATION outranks a player in the stack (2.8 presses the base) ---
+    b_foe = to_id(npc_spawn(400000, 0, 100000, "FoeB", "raider", "kralien_cruiser", "behav_npcship"))
+    b_sta = to_id(npc_spawn(400000, 0, 102000, "BaseB", "tsn, station", "starbase_command", "behav_station"))
+    b_ply = to_id(player_spawn(400000, 0, 103000, "PlayerB", "tsn", "tsn_battle_cruiser"))
+    a2x_default_enemy_ai(b_foe)
+
+    # --- C: an ALLY is never targeted (same side), even with nothing else around ---
+    c_foe = to_id(npc_spawn(700000, 0, 100000, "FoeC", "raider", "kralien_cruiser", "behav_npcship"))
+    c_pal = to_id(npc_spawn(700000, 0, 102000, "PalC", "raider", "kralien_cruiser", "behav_npcship"))
+    a2x_default_enemy_ai(c_foe)
+
+    await delay_sim(2)
+    brains_run_all(None)
+    brains_run_all(None)
+
+    # A: returns the stack it attached, and the ship has a brain that picked the player
+    test_expect("default_ai_returns_stack", a_ret is not None and len(a_ret) == 3, f"returned {a_ret}")
+    a_tgt = get_inventory_value(a_foe, "blackboard:target", 0)
+    test_expect("default_ai_acquires_a_target", a_tgt, "no target acquired -- the ship has no brain")
+    test_expect("default_ai_target_is_hostile", a_tgt and side_are_enemies(a_foe, a_tgt), f"target {a_tgt} is not hostile to it")
+
+    # B: station wins the priority order (ai_chase_station sits above ai_chase_player)
+    b_tgt = get_inventory_value(b_foe, "blackboard:target", 0)
+    test_expect("default_ai_prefers_station", b_tgt == b_sta, f"target {b_tgt} expected station {b_sta}")
+
+    # C: diplomacy protects same-side ships -- the brain must not pick its own ally
+    c_tgt = get_inventory_value(c_foe, "blackboard:target", 0)
+    test_expect("default_ai_spares_ally", c_tgt != c_pal, f"targeted its own ally {c_tgt}")
+
+    # D: a ceasefire must take the ship out of the fight by DIPLOMACY alone, with no
+    # brain change -- the payoff of the side work. It does NOT necessarily drop the
+    # blackboard target: ai_chase_current deliberately keeps closing on whatever it was
+    # already engaging (only `shoot` is gated). The guarantee is that nothing it holds is
+    # hostile any more, so target() is called with shoot=False and it stops firing.
+    side_set_relations("tsn", "raider", sbs.DIPLOMACY.NEUTRAL)
+    brains_run_all(None)
+    brains_run_all(None)
+    a_tgt2 = get_inventory_value(a_foe, "blackboard:target", 0)
+    test_expect("ceasefire_ends_hostility", not side_are_enemies("raider", "tsn"), "sides still hostile after ceasefire")
+    test_expect("ceasefire_target_no_longer_hostile", not (a_tgt2 and side_are_enemies(a_foe, a_tgt2)), f"still holding a HOSTILE target {a_tgt2}")
+    ->END
+
+@map/test_convert_defaultai "TEST convert_defaultai"
+" Conformance test for a2x_default_enemy_ai: the 2.8 implicit enemy brain stack
+" (retaliate -> station -> player), that it spares allies, and that a ceasefire
+" stops it through diplomacy without touching the brain.
+    test_begin("convert_defaultai")
+    await task_schedule(run_test_convert_defaultai)
+    test_report_strict("convert_defaultai")

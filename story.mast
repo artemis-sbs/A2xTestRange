@@ -6,6 +6,7 @@
 import maps/test_harness.py
 import maps/test_convert_ai.mast
 import maps/test_convert_sides.mast
+import maps/test_convert_defaultai.mast
 import maps/test_convert_captain.mast
 import maps/test_convert_pirate.mast
 import maps/test_convert_angle.mast
