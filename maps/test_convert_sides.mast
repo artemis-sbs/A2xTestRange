@@ -1,0 +1,107 @@
+# Conformance test: the arme2cosmos converter's assumed SIDE/diplomacy behaviors -- that
+# a2x_declare_sides actually produces the diplomacy the emitted mission depends on (the
+# tool's unit tests only check the right call is emitted).
+#
+# Why this matters more than most: 2.8 declares no sides at all. sideValue IS the faction
+# and the engine implicitly makes different non-zero values hostile. If the Cosmos side
+# agents are missing or mis-related the failure is SILENT -- no error, just NPCs that chase
+# and never fire, because the LM npc brains gate the trigger on
+#     shoot = side_are_enemies(BRAIN_AGENT_ID, _target)
+#
+# Run: python -m cosmos_dev.mission_runner ../A2xTestRange --map test_convert_sides --test 20
+
+=== run_test_convert_sides
+metadata: ``` yaml
+type: test/convert_sides
+```
+    # The converter emits exactly this into //shared/signal/create_sides: the set of 2.8
+    # sideValues the mission uses. 0/1/2 are the common case; 4 stands in for a synthesized
+    # side (a multi-team mission like MISS_The_Arena uses sideValues 4..11).
+    a2x_declare_sides([0, 1, 2, 4])
+
+    # --- A: the sideValue -> side key mapping (mirrored by the tool's _side_key) ---
+    test_expect("side_key_0_neutral", a2x_side_key(0) == "neutral", f"got {a2x_side_key(0)}")
+    test_expect("side_key_1_enemy", a2x_side_key(1) == "enemy", f"got {a2x_side_key(1)}")
+    test_expect("side_key_2_friendly", a2x_side_key(2) == "friendly", f"got {a2x_side_key(2)}")
+    # NOT collapsed onto a LegendaryMissions key: an N-faction mission must stay N factions.
+    test_expect("side_key_4_synthesized", a2x_side_key(4) == "side_4", f"got {a2x_side_key(4)}")
+
+    # --- B: the sides actually got registered (to_side_id resolves the key) ---
+    test_expect("side_enemy_exists", to_side_id("enemy", warn=False) is not None, "no enemy side")
+    test_expect("side_friendly_exists", to_side_id("friendly", warn=False) is not None, "no friendly side")
+    test_expect("side_4_exists", to_side_id("side_4", warn=False) is not None, "no side_4 side")
+
+    # --- C: 2.8's implicit rule -- different non-zero sideValues are HOSTILE ---
+    test_expect("enemy_hostile_to_friendly", side_are_enemies("enemy", "friendly"), "not hostile")
+    test_expect("friendly_hostile_to_enemy", side_are_enemies("friendly", "enemy"), "relation not symmetric")
+    # ...including between two synthesized sides (the PvP / multi-faction case).
+    test_expect("side_4_hostile_to_friendly", side_are_enemies("side_4", "friendly"), "not hostile")
+
+    # --- D: sideValue 0 is "no side" -- present, but nobody's enemy ---
+    test_expect("neutral_not_hostile_to_friendly", not side_are_enemies("neutral", "friendly"), "0 should not be hostile")
+    test_expect("neutral_not_hostile_to_enemy", not side_are_enemies("neutral", "enemy"), "0 should not be hostile")
+
+    # --- E: same side is allied (side_create self-allies), so friendlies don't shoot each other ---
+    test_expect("friendly_allied_to_self", side_are_allies("friendly", "friendly"), "side not self-allied")
+
+    # --- F: the emitted spawn string -- first token is the side KEY, the rest are ROLES.
+    # This is what a2x_create_enemy(..., side="enemy, raider, fleet_1") relies on.
+    foe = npc_spawn(100000, 0, 100000, "FoeA", "enemy, raider, fleet_1", "kralien_cruiser", "behav_npcship")
+    foe_id = to_id(foe)
+    friend = player_spawn(100000, 0, 103000, "FriendA", "friendly", "tsn_battle_cruiser")
+    friend_id = to_id(friend)
+
+    test_expect("spawn_side_key_is_first_token", to_object(foe_id).side == "enemy", f"side {to_object(foe_id).side}")
+    test_expect("spawn_extra_tokens_become_roles", has_role(foe_id, "raider") and has_role(foe_id, "fleet_1"), "raider/fleet_1 role missing")
+
+    # --- G: the payoff -- an emitted enemy really IS hostile to an emitted friendly ---
+    test_expect("spawned_foe_hostile_to_friend", side_are_enemies(foe_id, friend_id), "spawned objects not hostile")
+
+    # --- H: the LM consumer that needs BOTH diplomacy and the raider scope role: the
+    # docking addon's enemies-near gate, side_hostile_members(PLAYER, "raider").
+    # Diplomacy alone isn't enough (the role scopes it); the role alone isn't either.
+    hostiles = side_hostile_members(friend_id, "raider")
+    test_expect("docking_gate_sees_raider", foe_id in hostiles, f"side_hostile_members(player,'raider') = {len(hostiles)} members")
+
+    # --- I: a mid-mission defection (2.8 set_side_value) moves the ship's diplomacy with it ---
+    a2x_set_side_value(foe_id, 2)
+    test_expect("defect_changes_side_key", to_object(foe_id).side == "friendly", f"side {to_object(foe_id).side}")
+    test_expect("defect_ends_hostility", not side_are_enemies(foe_id, friend_id), "still hostile after defecting")
+
+    # --- J: declaring twice is a no-op, not a duplicate/reset (side_create reconfigures) ---
+    a2x_declare_sides([1, 2])
+    test_expect("declare_is_idempotent", side_are_enemies("enemy", "friendly"), "relations lost on re-declare")
+
+    # --- K: side_hostile_ships -- the diplomacy-only "who may I fight" set that replaced
+    # scoping a hostile set by the "raider" tag. LegendaryMissions (docking's enemies-near
+    # gate, autoplay, the warden brain, the GM count) reads this, so pin its membership.
+    foe2 = to_id(npc_spawn(120000, 0, 100000, "FoeK", "enemy", "kralien_cruiser", "behav_npcship"))
+    stat2 = to_id(npc_spawn(122000, 0, 100000, "StatK", "enemy, station", "starbase_command", "behav_station"))
+    ships = side_hostile_ships(friend_id)
+    test_expect("hostile_ships_includes_untagged_foe", foe2 in ships, "an enemy with NO combat tag must still count")
+    # A hostile station is on a hostile side, so it is included (LM spawns enemy stations
+    # on the raider side, so the old tag-scoped set included them too - same membership).
+    test_expect("hostile_ships_includes_hostile_station", stat2 in ships, "hostile station missing")
+    # Out of the fight by diplomacy: surrendering moves the ship to the neutral
+    # "surrendered" side, so it drops out with no tag to strip.
+    side_surrender(foe2)
+    test_expect("hostile_ships_drops_surrendered", foe2 not in side_hostile_ships(friend_id), "surrendered ship still hostile")
+
+    # --- L: players_ceasefire -- "end the attack" as a RELATION change. The old way
+    # stripped a shared combat tag, which left the ships diplomatically hostile (brains
+    # kept firing); this must actually clear hostility toward the players.
+    side_unsurrender(foe2)
+    test_expect("ceasefire_precondition_hostile", side_are_enemies("enemy", "friendly"), "not hostile before ceasefire")
+    n = players_ceasefire()
+    test_expect("ceasefire_changed_a_pair", n > 0, f"players_ceasefire changed {n} pairs")
+    test_expect("ceasefire_ends_hostility", not side_are_enemies("enemy", "friendly"), "still hostile after ceasefire")
+    test_expect("ceasefire_empties_hostile_set", len(players_hostile_ships()) == 0, f"{len(players_hostile_ships())} foes left after ceasefire")
+    ->END
+
+@map/test_convert_sides "TEST convert_sides"
+" Conformance test for a2x_declare_sides: 2.8 sideValue -> Cosmos sides + the implicit
+" 2.8 diplomacy (different non-zero value = hostile, 0 = no side), the side-key/role split
+" in the emitted spawn string, and set_side_value defection.
+    test_begin("convert_sides")
+    await task_schedule(run_test_convert_sides)
+    test_report_strict("convert_sides")
