@@ -19,6 +19,33 @@ type: test/convert_player
     test_expect("player_slot0_resolves_to_id", a2x_player_ship(0) == p, f"a2x_player_ship(0) {a2x_player_ship(0)} expected {p}")
     # a slot with no player ship -> None (no crash)
     test_expect("player_empty_slot_none", a2x_player_ship(5) is None, f"a2x_player_ship(5) {a2x_player_ship(5)} expected None")
+
+    # --- a2x_place_player: a 2.8 create type="player" OUTSIDE <start> PLACES the ship ---
+    # 2.8 has 8 fixed player slots and the crew is already flying one, so that command
+    # cannot make a 9th ship. The converter emits place_player for every player create in
+    # an event; spawning there instead left a second, unmanned hull behind.
+    _n_before = len(to_id_list(role("__player__")))
+    _moved = a2x_place_player(90000, 0, 90000, slot=0, name="Renamed", side="tsn")
+    await delay_sim(1)
+    _po = to_object(p)
+
+    test_expect("place_player_returns_the_same_ship", _moved == p,
+        f"place_player returned {_moved}, expected the slot-0 ship {p}")
+    # the whole point: no new hull
+    test_expect("place_player_makes_no_new_ship",
+        len(to_id_list(role("__player__"))) == _n_before,
+        f"player ships {len(to_id_list(role('__player__')))} expected {_n_before} (unchanged)")
+    # 2.8 coords are flipped by a2x_pos, so compare against that, not the raw input
+    _want = a2x_pos(90000, 0, 90000)
+    test_expect("place_player_moved_the_ship",
+        abs(_po.pos.x - _want.x) < 1 and abs(_po.pos.z - _want.z) < 1,
+        f"ship at ({_po.pos.x}, {_po.pos.z}) expected ({_want.x}, {_want.z})")
+    # 2.8 missions rename per entrance (Medusa's Maze names it Gallimimus at 7 of its 8)
+    test_expect("place_player_renamed_in_place", _po.name == "Renamed",
+        f"ship name {_po.name!r} expected 'Renamed'")
+    # an empty slot is a no-op, not a crash
+    test_expect("place_player_empty_slot_is_none", a2x_place_player(1, 0, 1, slot=5) is None,
+        "placing into a slot with no ship should return None")
     ->END
 
 @map/test_convert_player "TEST convert_player"
