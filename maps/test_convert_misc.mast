@@ -5,6 +5,16 @@
 #
 # Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_misc --test 15
 
+# Every comms delivery emits `comms_message`. incoming_comms_text now shows its transient
+# text as a lower-third overlay, which is visual and cannot be asserted headless -- so what
+# this records is the DURABLE channel underneath it, the one a presentation change must not
+# take away with it. Collects the sender name of each message seen.
+shared _cm_seen = []
+
+//shared/signal/comms_message
+    _cm_seen.append(COMMS_MESSAGE.from_name)
+    ->END
+
 === run_test_convert_misc
 metadata: ``` yaml
 type: test/convert_misc
@@ -25,6 +35,27 @@ type: test/convert_misc
     a2x_warning_popup("Test warning message", title="Warning")
     a2x_spawn_external_program("noop_program")
     test_expect("comms_ui_smoke", True, "incoming_comms_text / warning_popup / spawn_external_program ran without error")
+
+    # incoming_comms_text has TWO channels: a transient lower-third subtitle on the main
+    # screen (visual -- the smoke test above covers it running) and a DURABLE comms
+    # message. Only the message side is assertable headless, and it is the side that must
+    # not regress when the transient side changes presentation: the overlay shows ONE line
+    # at a time, so the comms log is what keeps the history. _cm_seen (top of file) counts
+    # the comms_message signal every delivery emits.
+    n_before = len(_cm_seen)
+    a2x_incoming_comms_text("Second transmission.", from_name="Tester")
+    await delay_sim(1)
+    test_expect("comms_text_still_reaches_comms", len(_cm_seen) > n_before,
+        f"comms messages {len(_cm_seen)} expected more than {n_before}")
+    test_expect("comms_text_names_the_2x_sender", "Tester" in _cm_seen,
+        f"the 2.8 `from` should be the message sender; saw {_cm_seen}")
+
+    # A line too long for the plate is split into timed parts rather than clipped. Headless
+    # there is no client to measure against, so this only asserts it does not raise.
+    a2x_incoming_comms_text("A transmission long enough that the plate cannot hold it in "
+        "one line, which the overlay answers by splitting it into timed parts.",
+        from_name="Tester")
+    test_expect("comms_text_long_line_ran", True, "a long lower-third line raised")
     ->END
 
 @map/test_convert_misc "TEST convert_misc"
