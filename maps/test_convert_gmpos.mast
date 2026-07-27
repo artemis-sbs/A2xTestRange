@@ -19,6 +19,26 @@ type: test/convert_gmpos
     op = to_object(obj).pos
     gp = to_object(gm).pos
     test_expect("gmpos_moved_to_gm", abs(op.x - gp.x) < 1 and abs(op.y - gp.y) < 1 and abs(op.z - gp.z) < 1, f"obj ({op.x:.0f},{op.y:.0f},{op.z:.0f}) expected gm ({gp.x:.0f},{gp.y:.0f},{gp.z:.0f})")
+
+    # --- a2x_gm_coords: SPAWN where the GM is (2.8 use_gm_position="yes") ---------------
+    # The converter feeds this straight into the a2x_create_* helpers, which flip every
+    # position they are given -- so gm_coords must hand back 2.8 coordinates, not Cosmos
+    # ones. The flip mirrors about the map centre and is its own inverse, so a create at
+    # gm_coords(gm) must land ON the GM. Before this existed the attribute was ignored and
+    # 351 corpus commands spawned at the map corner instead.
+    _c = a2x_gm_coords(gm)
+    _spawned = to_object(a2x_create_enemy(_c[0], _c[1], _c[2], "kralien_cruiser", side="enemy", name="AtGM"))
+    await delay_sim(1)
+    _sp = _spawned.pos
+    test_expect("gm_coords_spawns_on_the_gm",
+        abs(_sp.x - gp.x) < 1 and abs(_sp.y - gp.y) < 1 and abs(_sp.z - gp.z) < 1,
+        f"spawned ({_sp.x:.0f},{_sp.y:.0f},{_sp.z:.0f}) expected gm ({gp.x:.0f},{gp.y:.0f},{gp.z:.0f})")
+    # it returns 2.8 coords, i.e. the MIRROR of the GM's Cosmos position -- not the raw one
+    test_expect("gm_coords_are_2x_not_cosmos", abs(_c[0] - gp.x) > 1 or abs(_c[2] - gp.z) > 1,
+        f"gm_coords {(_c[0], _c[2])} should be the 2.8 mirror of the Cosmos ({gp.x:.0f},{gp.z:.0f})")
+    # no GM at all -> the 2.8 origin, not an exception inside a console handler
+    test_expect("gm_coords_unresolved_is_origin", a2x_gm_coords(None) == (0, 0, 0),
+        f"gm_coords(None) {a2x_gm_coords(None)} expected (0, 0, 0)")
     ->END
 
 @map/test_convert_gmpos "TEST convert_gmpos"
