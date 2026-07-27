@@ -32,10 +32,34 @@ type: test/convert_sides
     test_expect("side_4_exists", to_side_id("side_4", warn=False) is not None, "no side_4 side")
 
     # --- C: 2.8's implicit rule -- different non-zero sideValues are HOSTILE ---
+    # NOTE: these check the scripting LINK GRAPH, which is symmetric by construction. They
+    # say nothing about the engine's own relationship table -- see C2. That gap is why this
+    # suite passed for months while every enemy contact drew grey in the engine.
     test_expect("enemy_hostile_to_friendly", side_are_enemies("enemy", "friendly"), "not hostile")
-    test_expect("friendly_hostile_to_enemy", side_are_enemies("friendly", "enemy"), "relation not symmetric")
+    test_expect("friendly_hostile_to_enemy", side_are_enemies("friendly", "enemy"), "link graph not symmetric")
     # ...including between two synthesized sides (the PvP / multi-faction case).
     test_expect("side_4_hostile_to_friendly", side_are_enemies("side_4", "friendly"), "not hostile")
+
+    # --- C2: the ENGINE's relationship table, which is what the 2D map actually draws from.
+    # It is DIRECTIONAL: set_side_relationship(a, b, ...) records a->b only, and colouring is
+    # a viewer-side -> contact-side lookup. a2x_declare_sides walked each pair once, so the
+    # direction a player on "friendly" needed was never written and every enemy rendered
+    # UNKNOWN (grey) -- with every assertion in section C still passing.
+    #
+    # The engine exposes no getter for this table, so test_engine_relation returns None
+    # in-engine and the checks skip there rather than failing.
+    _fwd = test_engine_relation("enemy", "friendly")
+    if _fwd is not None:
+        test_expect("engine_rel_enemy_to_friendly",
+            _fwd == int(sbs.DIPLOMACY.HOSTILE), f"got {_fwd}")
+        # The direction a player on "friendly" looks up. Missing => grey contacts.
+        test_expect("engine_rel_friendly_to_enemy",
+            test_engine_relation("friendly", "enemy") == int(sbs.DIPLOMACY.HOSTILE),
+            f"got {test_engine_relation('friendly', 'enemy')}")
+        # Same side must be ALLIED in the engine table, not merely linked in the graph.
+        test_expect("engine_rel_friendly_self",
+            test_engine_relation("friendly", "friendly") == int(sbs.DIPLOMACY.ALLIED),
+            f"got {test_engine_relation('friendly', 'friendly')}")
 
     # --- D: sideValue 0 is "no side" -- present, but nobody's enemy ---
     test_expect("neutral_not_hostile_to_friendly", not side_are_enemies("neutral", "friendly"), "0 should not be hostile")

@@ -53,6 +53,30 @@ def test_expect(name, cond, detail=""):
     return ok
 
 
+def test_engine_relation(a, b):
+    """The ENGINE's diplomacy for side ``a`` -> side ``b``, or None if unreadable.
+
+    The 2D map draws from the engine's own relationship table, not from the scripting link
+    graph, and that table is DIRECTIONAL: set_side_relationship(a, b, ...) records a->b only,
+    while colouring is a viewer-side -> contact-side lookup. Asserting only the link graph
+    (side_are_enemies, which is symmetric by construction) is how a2x_declare_sides shipped
+    writing each pair once -- every scripted check passed and every enemy drew grey.
+
+    The engine exposes setters but no getter for this table, so it can only be read under the
+    mock. Returns None there instead of raising, so a map can skip the check in-engine.
+    (Lives here rather than inline in MAST because `hasattr` is not in MAST's eval globals.)
+    """
+    from sbs_utils.helpers import FrameContext
+    sim = FrameContext.context.sim
+    getter = getattr(sim, "get_side_relationship", None)
+    if getter is None:
+        return None
+    try:
+        return int(getter(a, b))
+    except Exception:
+        return None
+
+
 def test_report(suite):
     """Emit a summary line and the names of any failures. Returns the failure count."""
     total = len(_tr_results)
