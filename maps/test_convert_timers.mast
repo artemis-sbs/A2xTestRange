@@ -1,0 +1,112 @@
+# Conformance test: the shapes the converter emits for a 2.8 timer.
+#
+# 2.8 gates 1546 of its 8699 corpus events on a timer, and every one of them used to become
+# a delay_sim(0.5) polling task resident from t=0. The converter now hands most of them to
+# the timer itself, so what this map asserts is the CONTRACT the emitted code depends on:
+# that a //shared/signal route actually RUNS, once per deadline, with TIMER_NAME and
+# TIMER_COUNT in scope, and that clear_interval stops it.
+#
+# It is written in the converted-mission shape on purpose: the map task arms the timers and
+# then ENDS, exactly as a converted @map does (it emits the 2.8 <start> block and stops;
+# routes and loops carry the rest). Everything under test therefore runs with no live
+# mission task above it.
+#
+# (The specific defect that made this worth writing - a timer emitting with a FINISHED
+# sender task, so every route was skipped - is guarded by unit tests in
+# sbs_utils/tests/test_timers.py, which reproduce it deterministically. It depends on which
+# task the scheduler ticked last, which a mission cannot pin down, so do not rely on this
+# map to catch a regression of it.)
+#
+# The three shapes, one per 2.8 idiom:
+#   ONESHOT   set_timer(signal=)   "after N seconds, do this"      -> fires exactly once
+#   INTERVAL  set_interval()       "every N seconds, do this"      -> beats until cleared
+#   deferred  set_timer(signal=)   "after N seconds, START a loop" -> the loop is not
+#                                                                     resident before then
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_timers --test 25
+
+=== a2xt_check_timers
+metadata: ``` yaml
+type: test/convert_timers
+```
+    test_expect("nothing_fires_early", A2XT_ONESHOT == 0 and A2XT_BEATS == 0,
+                "no timer route may run before its deadline")
+
+    await delay_sim(3)
+    test_expect("oneshot_fired", A2XT_ONESHOT == 1,
+                "set_timer(signal=) must RUN its //shared/signal route, not merely emit")
+    test_expect("interval_beat_once", A2XT_BEATS >= 1, "set_interval must beat")
+    test_expect("deferred_loop_not_started_yet", A2XT_DEFERRED_STARTED == 0,
+                "a deferred loop must not exist before its deadline")
+
+    await delay_sim(3)
+    test_expect("oneshot_fired_only_once", A2XT_ONESHOT == 1,
+                "a one-shot timer must not re-fire")
+    test_expect("interval_kept_beating", A2XT_BEATS >= 2, "set_interval must keep beating")
+    test_expect("deferred_loop_started", A2XT_DEFERRED_STARTED == 1,
+                "the deadline must start the loop it was holding back")
+    test_expect("deferred_body_ran", A2XT_DEFERRED_RAN == 1,
+                "the deferred loop must then run its body")
+
+    # TIMER_NAME / TIMER_COUNT reach the handler, and TIMER_NAME is the TIMER's name -
+    # not the signal's. The converter names the two differently on purpose.
+    test_expect("timer_name_is_the_timer", A2XT_LAST_NAME == "a2xt_beat",
+                "TIMER_NAME carries the timer name, not the signal name")
+    test_expect("interval_count_increments", A2XT_LAST_COUNT >= 2,
+                "TIMER_COUNT counts the beats")
+
+    # clear_interval stops it: the converter relies on this to end a converted 2.8 loop.
+    beats_at_clear = A2XT_BEATS
+    clear_interval(0, "a2xt_beat")
+    await delay_sim(5)
+    test_expect("clear_interval_stops_the_beat", A2XT_BEATS == beats_at_clear,
+                "clear_interval must stop the beat")
+    test_report_strict("convert_timers")
+    ->END
+
+# The routes under test. SHARED, not per-console: a converted 2.8 event body is server work,
+# and on a plain //signal it would run once per connected console - and on an interval, once
+# per console per beat.
+//shared/signal/a2xt_sig_once
+    shared A2XT_ONESHOT = A2XT_ONESHOT + 1
+    ->END
+
+//shared/signal/a2xt_sig_beat
+    shared A2XT_BEATS = A2XT_BEATS + 1
+    shared A2XT_LAST_NAME = TIMER_NAME
+    shared A2XT_LAST_COUNT = TIMER_COUNT
+    ->END
+
+//shared/signal/a2xt_sig_defer
+    shared A2XT_DEFERRED_STARTED = 1
+    task_schedule(a2xt_deferred_loop)
+    ->END
+
+=== a2xt_deferred_loop
+---a2xt_deferred_body
+    await delay_sim(0.5)
+    shared A2XT_DEFERRED_RAN = 1
+    ->END
+
+@map/test_convert_timers "TEST convert_timers"
+" Conformance test: a 2.8 timer that pushes its own deadline, and the routes that ride it.
+    shared A2XT_ONESHOT = 0
+    shared A2XT_BEATS = 0
+    shared A2XT_DEFERRED_RAN = 0
+    shared A2XT_DEFERRED_STARTED = 0
+    shared A2XT_LAST_NAME = ""
+    shared A2XT_LAST_COUNT = 0
+    test_begin("convert_timers")
+
+    # ONESHOT: the whole trigger is the deadline, so the route body IS the event.
+    set_timer(0, "a2xt_once", seconds=2, signal="a2xt_sig_once")
+    # INTERVAL: 2.8's "every N seconds" idiom - an event that re-arms its own timer.
+    set_interval(0, "a2xt_beat", "a2xt_sig_beat", seconds=2)
+    # deferred: a one-shot timer with OTHER conditions on it keeps its loop, but the loop
+    # is not scheduled until the deadline. Nothing may run it before then.
+    set_timer(0, "a2xt_defer", seconds=4, signal="a2xt_sig_defer")
+
+    task_schedule(a2xt_check_timers)
+    # ...and END, like a converted mission's @map: everything under test runs with no
+    # live mission task above it.
+    ->END
