@@ -1,7 +1,7 @@
 # Conformance test: the converter's 2.8 Probe -> Sensor Beacon mapping. 2.8 has no Probe
-# torpedo type, so missileStoresProbe maps to the Sensor Beacon: SET writes the loadable
-# count (Beacon_NUM data_set); ADDTO fabricates that many sensor beacons into cargo
-# (beacon_built). See a2x/props.py ("probe" kind) + _add_sensor_beacons_to_cargo.
+# torpedo type, so missileStoresProbe maps to the Sensor Beacon: SET fills the tube to its
+# capacity (Beacon_MAX) and puts the rest in cargo; ADDTO fabricates that many sensor
+# beacons into cargo (beacon_built). See a2x/props.py ("probe" kind) + _add_sensor_beacons_to_cargo.
 #
 # Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_probe --test 15
 
@@ -13,17 +13,26 @@ type: test/convert_probe
     p = to_id(npc_spawn(100000, 0, 100000, "Prober", "tsn", "tsn_battle_cruiser", "behav_npcship"))
     await delay_sim(1)
 
-    # SET -> the loadable Sensor Beacon count (Beacon_NUM)
-    a2x_set_object_property(p, "missileStoresProbe", 3)
-    test_expect("probe_set_writes_beacon_num", to_object(p).data_set.get("Beacon_NUM", 0) == 3, f"Beacon_NUM {to_object(p).data_set.get('Beacon_NUM', 0)} expected 3")
-    test_expect("probe_read_back", a2x_object_property(p, "missileStoresProbe") == 3, f"read {a2x_object_property(p, 'missileStoresProbe')} expected 3")
+    # The Cosmos Beacon tube holds Beacon_MAX rounds (one, stock) and is fabricate-only:
+    # a 2.8 store FILLS the tube up to that capacity and the remainder goes to cargo as
+    # built beacons (sbs_utils da30efa5). A store straight into Beacon_NUM read 3/1.
+    cap = to_object(p).data_set.get("Beacon_MAX", 0) or 0
+    want_loaded = min(3, cap)
 
-    # ADDTO -> fabricate that many sensor beacons into cargo (beacon_built), does NOT touch Beacon_NUM
+    # SET -> fill the tube to capacity, rest into cargo
+    a2x_set_object_property(p, "missileStoresProbe", 3)
+    test_expect("probe_set_fills_tube_to_capacity", to_object(p).data_set.get("Beacon_NUM", 0) == want_loaded, f"Beacon_NUM {to_object(p).data_set.get('Beacon_NUM', 0)} expected {want_loaded} (cap {cap})")
+    test_expect("probe_read_back", a2x_object_property(p, "missileStoresProbe") == want_loaded, f"read {a2x_object_property(p, 'missileStoresProbe')} expected {want_loaded}")
+    built = get_inventory_value(p, "beacon_built", []) or []
+    test_expect("probe_set_overflow_to_cargo", len(built) == 3 - want_loaded, f"beacon_built {len(built)} expected {3 - want_loaded}")
+
+    # ADDTO -> fabricate that many sensor beacons into cargo, does NOT touch Beacon_NUM
+    before = len(built)
     a2x_addto_object_property(p, "missileStoresProbe", 2)
-    built = get_inventory_value(p, "beacon_built", [])
-    test_expect("probe_add_to_cargo_count", len(built) == 2, f"beacon_built {len(built)} expected 2")
-    test_expect("probe_add_kind_sensor", len(built) == 2 and built[0]["kind"] == "sensor", "cargo entries should be sensor beacons")
-    test_expect("probe_add_leaves_count", to_object(p).data_set.get("Beacon_NUM", 0) == 3, "ADD must not change the loaded count")
+    built = get_inventory_value(p, "beacon_built", []) or []
+    test_expect("probe_add_to_cargo_count", len(built) == before + 2, f"beacon_built {len(built)} expected {before + 2}")
+    test_expect("probe_add_kind_sensor", len(built) > 0 and built[-1]["kind"] == "sensor", "cargo entries should be sensor beacons")
+    test_expect("probe_add_leaves_count", to_object(p).data_set.get("Beacon_NUM", 0) == want_loaded, "ADD must not change the loaded count")
 
     # a set of 0 (the corpus case) clears the loadable count
     a2x_set_object_property(p, "missileStoresProbe", 0)

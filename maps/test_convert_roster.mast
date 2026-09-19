@@ -1,0 +1,63 @@
+# Conformance test: what a converted mission does with its player ships and monsters.
+#
+# 1. Roster. Consoles bind to player ROSTER records, not ship objects. A converted mission
+#    spawns its eight ships with a2x_create_player(..., slot=N) (player_ensure stamps the
+#    slot) and never seeds, so player_roster_adopt used to skip every ship and the picker
+#    offered "No Player Ships". Adopt now records a stamped ship at its own slot.
+# 2. Spares. game_started PARKS the ships the mission did not declare
+#    (a2x_park_spare_players) instead of deleting them - never a delete under live
+#    consoles, and a crewed spare is kept.
+# 3. Monsters. LM's non-Typhon creature prefabs yield nothing unless MONSTER_NON_TYPHON is
+#    on; the converter writes it into settings.yaml, and passes the 2.8 name as `name`.
+#
+# Run: python -m cosmos_dev.mission_runner A2xTestRange --map test_convert_roster --test 15
+
+=== run_test_convert_roster
+metadata: ``` yaml
+type: test/convert_roster
+```
+    side_ensure("tsn", "TSN")
+    _p0 = a2x_create_player(50000, 0, 50000, "tsn_light_cruiser", name="Artemis", side="tsn", slot=0)
+    _p1 = a2x_create_player(50000, 0, 51000, "tsn_battle_cruiser", name="Intrepid", side="tsn, a2x_spare_player", slot=1)
+    _p2 = a2x_create_player(50000, 0, 52000, "tsn_battle_cruiser", name="Aegis", side="tsn, a2x_spare_player", slot=2)
+    player_roster_adopt()
+
+    test_expect("roster_has_every_slot", player_roster_slots(False) == [0, 1, 2],
+        f"roster slots {player_roster_slots(False)} expected [0, 1, 2]")
+    test_expect("roster_resolves_slot_to_ship", player_roster_resolve(1) == _p1,
+        f"slot 1 resolves to {player_roster_resolve(1)}, expected {_p1}")
+
+    # (A spare a CONNECTED console is crewing is kept; a binding to a client that is not
+    # connected is stale and parks anyway. Covered by the sbs_utils unit tests, which can
+    # fake a connection; headless there is no real client to bind.)
+    _parked = a2x_park_spare_players("a2x_spare_player")
+    await delay_sim(1)
+    test_expect("spares_parked", _parked == [1, 2], f"parked {_parked}, expected [1, 2]")
+    test_expect("parked_spare_still_exists", object_exists(_p1), "a parked spare must not be deleted")
+    test_expect("parked_spare_not_a_player", not has_role(_p1, "__player__"),
+        "a parked spare must drop __player__")
+    test_expect("declared_ship_still_a_player", has_role(_p0, "__player__"),
+        "the declared ship must stay a player")
+    test_expect("active_slots", player_roster_slots() == [0],
+        f"active slots {player_roster_slots()} expected [0]")
+
+    # Monsters: the setting the converter writes, then the prefab it emits.
+    shared MONSTER_NON_TYPHON = True
+    _before = len(to_id_list(role("dragon")))
+    prefab_spawn(prefab_dragon, {"START_X": 1000, "START_Y": 0, "START_Z": 1000, "name": "Baby Dragon"})
+    await delay_sim(2)
+    _dragons = to_object_list(role("dragon"))
+    test_expect("dragon_spawns_with_setting_on", len(_dragons) == _before + 1,
+        f"{len(_dragons)} dragons, expected {_before + 1}")
+    _names = ""
+    for _d in _dragons:
+        _names = _names + _d.name + ";"
+    test_expect("dragon_keeps_its_2_8_name", "Baby Dragon;" in _names,
+        f"dragon names {_names}, expected 'Baby Dragon'")
+    ->END
+
+@map/test_convert_roster "TEST convert_roster"
+" Conformance test for converted player rosters, spare parking and monster prefabs.
+    test_begin("convert_roster")
+    await task_schedule(run_test_convert_roster)
+    test_report_strict("convert_roster")
